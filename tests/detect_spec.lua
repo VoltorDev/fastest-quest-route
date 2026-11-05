@@ -1,0 +1,113 @@
+-- Detector de cliente (Detect.lua) en los clientes que la plantilla debe distinguir.
+-- Se carga SOLO Detect.lua con force = true: el detector debe funcionar en cualquier cliente
+-- aunque este TOC no cargue fuera de Forever (un addon multi-versión lo reutiliza tal cual).
+-- Los perfiles retail y classic_era usan valores plausibles, no de un cliente real (wow_env.lua).
+local WowEnv = require("wow_env")
+
+local TOC = "RutaMisiones.toc"
+
+local function detect(opts)
+    local env = WowEnv.new(opts)
+    local ns = env:LoadToc(TOC, { force = true, only = { "Detect.lua" } }) or error("Detect.lua no cargó")
+    return ns.Client, env
+end
+
+local function contains(text, fragment)
+    assert(text:find(fragment, 1, true), "no aparece «" .. fragment .. "» en:\n" .. text)
+end
+
+describe("detector de cliente", function()
+    it("Forever beta 1.60.1.70291: las tres señales y ningún aviso", function()
+        local client, env = detect()
+        assert.is_true(client.isForever)
+        assert.is_false(client.isRetail)
+        assert.is_false(client.isClassicEra)
+        assert.are.equal("Forever", client.flavor)
+        assert.are.same({ project = true, game = true, interface = true }, client.signals)
+        assert.are.equal("1.60.1", client.buildVersion)
+        assert.are.equal(70291, client.buildNumber)
+        assert.are.equal(16001, client.interface)
+        assert.are.equal("Camelot", client.gameToken)
+        assert.are.equal("Mainline", client.familyToken)
+        assert.are.equal("Forever", client.tocFlavor)
+        assert.is_true(client.isMainlineFamily)
+        assert.is_true(client.hasModernAPI)
+        assert.is_true(client.hasVanillaContent)
+        assert.is_true(client.HasSecretRestrictions())
+        assert.are.same({}, client.GetWarnings())
+        assert.are.equal("Standard", client.GetGameModeName())
+        assert.is_nil(client.GetExperiencePresetName())
+        contains(client.Describe(), "Forever | 1.60.1.70291 Interface 16001 | WOW_PROJECT_ID=18")
+        assert.are.same({}, env:Missing())
+    end)
+
+    it("Forever: lee el preajuste de experiencia (Modern)", function()
+        local client = detect({ preset = 1 })
+        assert.are.equal("Modern", client.GetExperiencePresetName())
+    end)
+
+    it("Forever renombrado (WOW_PROJECT_FOREVER, X-Game Forever): sigue siendo Forever y avisa", function()
+        local client, env = detect({ client = "forever_renamed" })
+        assert.is_true(client.isForever)
+        assert.are.same({ project = true, game = true, interface = true }, client.signals)
+        assert.are.equal("Forever", client.gameToken)
+        local warnings = client.GetWarnings()
+        assert.are.equal(1, #warnings)
+        contains(warnings[1], "[Game] ya no es Camelot: Forever")
+        assert.are.same({}, env:Missing())
+    end)
+
+    it("basta una señal: con otro WOW_PROJECT_ID y otro Interface, X-Game Camelot decide", function()
+        local client = detect({
+            globals = { WOW_PROJECT_ID = 25 },
+            build = { "2.0.0", "80000", "Jan 1 2027", 20001 },
+        })
+        assert.is_true(client.isForever)
+        assert.are.same({ project = false, game = true, interface = false }, client.signals)
+        local warnings = table.concat(client.GetWarnings(), "\n")
+        contains(warnings, "WOW_PROJECT_ID=25 no es el esperado (18)")
+        contains(warnings, "Interface 20001 fuera de la banda")
+    end)
+
+    it("si el cliente no expande [Game]/[Family] en los metadatos, los descarta", function()
+        local client = detect({ expandMetadata = false })
+        assert.is_nil(client.gameToken)
+        assert.is_nil(client.familyToken)
+        assert.is_true(client.isForever)
+        assert.is_false(client.signals.game)
+        assert.is_true(client.isMainlineFamily)
+        assert.are.same({}, client.GetWarnings())
+    end)
+
+    it("retail 12.x: familia Mainline con API moderna, pero NO Forever", function()
+        local client, env = detect({ client = "retail" })
+        assert.is_false(client.isForever)
+        assert.is_true(client.isRetail)
+        assert.is_false(client.isClassicEra)
+        assert.are.equal("Retail", client.flavor)
+        assert.are.same({ project = false, game = false, interface = false }, client.signals)
+        assert.are.equal("Standard", client.gameToken)
+        assert.is_true(client.isMainlineFamily)
+        assert.is_true(client.hasModernAPI)
+        assert.is_false(client.hasVanillaContent)
+        assert.is_true(client.HasSecretRestrictions())
+        assert.are.same({}, client.GetWarnings())
+        assert.are.same({}, env:Missing())
+    end)
+
+    it("Classic Era: contenido Vanilla, sin API moderna ni secretos", function()
+        local client, env = detect({ client = "classic_era" })
+        assert.is_false(client.isForever)
+        assert.is_false(client.isRetail)
+        assert.is_true(client.isClassicEra)
+        assert.are.equal("ClassicEra", client.flavor)
+        assert.are.equal("Classic", client.familyToken)
+        assert.is_false(client.isMainlineFamily)
+        assert.is_false(client.hasModernAPI)
+        assert.is_true(client.hasVanillaContent)
+        assert.is_false(client.HasSecretRestrictions())
+        assert.are.same({}, client.GetWarnings())
+        contains(client.Describe(), "ClassicEra | 1.15.7.99999 Interface 11507 | WOW_PROJECT_ID=2")
+        assert.are.same({}, env:Missing())
+    end)
+end)

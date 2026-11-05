@@ -1,0 +1,11 @@
+-- Configuración de busted (busted 2.3 sobre Lua 5.1): `busted` en la carpeta del addon.
+-- Sin busted instalado: python RUTA\scripts\probar_addon.py . (shim con el Lua 5.1 de lupa).
+return {
+    _all = {
+        lpath = "tests/support/?.lua",
+    },
+    default = {
+        ROOT = { "tests" },
+        pattern = "_spec",
+    },
+}

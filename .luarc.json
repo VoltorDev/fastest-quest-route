@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.1",
+  "workspace.checkThirdParty": false,
+  "workspace.library": [
+    "C:/Users/Nico/Desktop/Claude/asistente-nico/wow-forever/referencia/vscode-wow-api/Annotations/Core",
+    "C:/Users/Nico/Desktop/Claude/asistente-nico/wow-forever/referencia/vscode-wow-api/Annotations/FrameXML",
+    "${3rd}/busted/library",
+    "${3rd}/luassert/library"
+  ],
+  "workspace.ignoreDir": [".release", "Libs", "tools"],
+  "diagnostics.globals": [
+    "RutaMisionesDB",
+    "RutaMisionesCharDB",
+    "SLASH_RUTAMISIONES1",
+    "SLASH_RUTAMISIONES2",
+    "UiMapPoint",
+    "LibQuestieDB",
+    "SlashCmdList",
+    "Settings",
+    "MinimalSliderWithSteppersMixin",
+    "GetAddOnMetadata",
+    "LE_EXPANSION_LEVEL_CURRENT",
+    "LE_EXPANSION_CLASSIC",
+    "WOW_PROJECT_CAMELOT",
+    "WOW_PROJECT_FOREVER",
+    "RegionalUniqueNamesEnabled"
+  ]
+}

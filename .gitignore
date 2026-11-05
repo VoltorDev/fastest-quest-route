@@ -1,0 +1,11 @@
+# Paquetes que genera el packager en local
+.release/
+
+# Secretos: los tokens van como secretos de GitHub Actions, nunca en el repositorio
+.env
+*.token
+
+# Sistema y editor
+Thumbs.db
+.DS_Store
+__pycache__/

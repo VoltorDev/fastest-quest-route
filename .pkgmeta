@@ -1,0 +1,19 @@
+# Empaquetado con BigWigsMods/packager. Un TOC con Interface 16xxx se publica como flavor Forever.
+package-as: RutaMisiones
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - README.md
+  - PLAN.md
+  - .luacheckrc
+  - .luarc.json
+  - stylua.toml
+  - .github
+  - tests
+  - tools
+  - .busted

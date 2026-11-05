@@ -1,0 +1,36 @@
+## Interface: 16001
+## AllowLoadGameType: camelot, forever
+## ExcludeLoadGameType: standard, classic
+## Title: RutaMisiones
+## Notes: Suggests the fastest order to do your quests (pick up, objectives, turn in), using Questie's database.
+## Notes-esES: Te dice en qué orden hacer las misiones para subir más rápido (recoger, objetivos, entregar), con la base de datos de Questie.
+## Notes-esMX: Te dice en qué orden hacer las misiones para subir más rápido (recoger, objetivos, entregar), con la base de datos de Questie.
+## Author: Nico
+## Version: @project-version@
+## IconTexture: Interface\Icons\INV_Misc_Map_01
+## OptionalDeps: QuestieDB, Questie
+## SavedVariables: RutaMisionesDB
+## SavedVariablesPerCharacter: RutaMisionesCharDB
+## AddonCompartmentFunc: RutaMisiones_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: RutaMisiones_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: RutaMisiones_OnAddonCompartmentLeave
+## X-Game: [Game]
+## X-Family: [Family]
+## X-Flavor: Forever
+## X-License: MIT
+## X-Curse-Project-ID: 0
+## X-Wago-ID: 0
+
+Locales\enUS.lua
+Locales\esES.lua
+Detect.lua
+Identity.lua
+Secrets.lua
+Core.lua
+Config.lua
+Slash.lua
+Planner.lua
+Data.lua
+Builder.lua
+Route.lua
+UI.lua
