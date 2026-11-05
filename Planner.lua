@@ -207,6 +207,89 @@ local function LocalSearch(route, start, p)
     return route, cost
 end
 
+-- Poda final: con la ruta ya completa, quita una a una las misiones que aportan menos XP por el
+-- tiempo que ocupan si no llegan al umbral (más bajo para las del diario). Hace falta porque las del
+-- diario se insertan primero, contra una ruta aún vacía, y entonces nunca parecen malas. No toca
+-- misiones que abren una continuación que sigue en la ruta.
+local function Prune(route, cost, totalValue, entryOf, skipped, start, p)
+    local removed = 0
+    while removed < 15 and cost > 0 do
+        local hasSuccessor, quests = {}, {}
+        for _, node in ipairs(route) do
+            quests[node.q] = true
+            for pred in pairs(node.q.afterSet or {}) do
+                hasSuccessor[pred] = true
+            end
+        end
+        local routeRate = totalValue / cost
+        local worst, worstScore, worstRoute, worstCost, worstRate
+        for quest in pairs(quests) do
+            local entry = entryOf[quest]
+            if entry and not hasSuccessor[quest] then
+                local without = {}
+                for _, node in ipairs(route) do
+                    if node.q ~= quest then
+                        without[#without + 1] = node
+                    end
+                end
+                local newCost = RouteCost(without, start, p)
+                local rate = (entry.value + (entry.bonus or 0)) / math.max(cost - newCost, 1)
+                local ratio = quest.inLog and p.keepRatio or p.minRatio
+                local score = rate / math.max(routeRate * ratio, 1e-9)
+                if score < 1 and (not worstScore or score < worstScore) then
+                    worst, worstScore, worstRoute, worstCost, worstRate = quest, score, without, newCost, rate
+                end
+            end
+        end
+        if not worst then
+            break
+        end
+        route, cost = worstRoute, worstCost
+        totalValue = totalValue - entryOf[worst].value
+        skipped[#skipped + 1] = { quest = worst, reason = "rate", rate = worstRate }
+        removed = removed + 1
+    end
+    if removed > 0 then
+        route, cost = LocalSearch(route, start, p)
+    end
+    return route, cost, totalValue
+end
+
+-- Misiones a evitar, a partir de las descartadas por un plan: primero las del diario (conviene
+-- abandonarlas o dejarlas para luego), después las cercanas que no merecen el desvío; dentro de cada
+-- grupo, de peor a mejor XP por hora. Las que solo «no caben» o dependen de otra no se avisan: no
+-- son malas, solo van después.
+function Planner.AvoidList(plan, limit)
+    local list = {}
+    for _, entry in ipairs(plan and plan.skipped or {}) do
+        local quest = entry.quest
+        if entry.reason == "rate" or (quest.inLog and entry.reason == "time") then
+            list[#list + 1] = {
+                questID = quest.id,
+                name = quest.name,
+                inLog = quest.inLog and true or false,
+                reason = entry.reason,
+                xpPerHour = (entry.rate or 0) * 3600,
+            }
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.inLog ~= b.inLog then
+            return a.inLog
+        end
+        if a.xpPerHour ~= b.xpPerHour then
+            return a.xpPerHour < b.xpPerHour
+        end
+        return a.questID < b.questID
+    end)
+    if limit then
+        for i = #list, limit + 1, -1 do
+            list[i] = nil
+        end
+    end
+    return list
+end
+
 function Planner.Key(questID, kind, index)
     return questID .. ":" .. kind .. ":" .. (index or 0)
 end
@@ -383,6 +466,7 @@ function Planner.Plan(quests, params)
 
     local cost
     route, cost = LocalSearch(route, start, p)
+    route, cost, totalValue = Prune(route, cost, totalValue, entryOf, skipped, start, p)
 
     -- Pasos con tiempo acumulado (llegada estimada a cada uno).
     local steps, elapsed, prev = {}, 0, start

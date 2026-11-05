@@ -11,8 +11,10 @@ qué recoger, qué objetivo hacer y dónde entregar, con la flecha del mapa en e
   objetivos cercanos de una tirada y no te hace ir y volver entre campamentos.
 - Entiende las **cadenas**: si entregar una misión abre otra en el mismo sitio, la tiene en cuenta (marca
   «[cadena]») y valora una misión floja si desbloquea una buena.
-- Descarta lo que no compensa (poca XP para el desvío, más de 2 niveles por encima, de otra zona) y lo explica en
-  `/ruta debug`.
+- Descarta lo que no compensa (poca XP para el desvío, más de 2 niveles por encima, de otra zona) y te dice **qué
+  misiones evitar**: bajo la ruta, una sección «Evitar» lista hasta 5, primero las de tu diario que conviene
+  abandonar o dejar para luego y después las cercanas que no merecen el desvío, con su XP por hora (el tooltip la
+  compara con la de tu ruta). Clic derecho en una la oculta. `/ruta debug` da la lista completa con motivos.
 - Se recalcula sola al aceptar, avanzar o entregar misiones, al subir de nivel y al cambiar de zona; nunca en
   combate.
 
@@ -26,7 +28,8 @@ consulta en el juego con la API pública de QuestieDB.
 - `/ruta recalcular`, `/ruta ignorar [ID]`, `/ruta restaurar` (devuelve las ignoradas), `/ruta config`,
   `/ruta debug`, `/ruta reset confirmar`.
 - Botón del compartimento de addons: clic para mostrar u ocultar; clic derecho para las opciones.
-- Opciones: flecha automática, pasos visibles, niveles máximos por encima, usar las reglas de Questie y escala.
+- Opciones: flecha automática, mostrar misiones a evitar, pasos visibles, niveles máximos por encima, usar las
+  reglas de Questie y escala.
 
 ## Cómo calcula (y sus límites)
 

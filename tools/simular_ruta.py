@@ -78,12 +78,19 @@ def main():
     Q = lua.globals().LibQuestieDB.Quest
     log = lua.table()  # questID -> {title, complete, objectives}
     xp_total, xp_nivel, t = 0, 0, 0.0
+    evitar_antes = None
+    avoid_list = lua.eval(b"function(ns, plan) return ns.Planner.AvoidList(plan, 5) end")
     for paso in range(1, args.pasos + 1):
         resultado, n_quests, _ = plan(log, pos)
         steps = resultado.steps
         if len(steps) == 0:
             print("Sin pasos: la ruta se ha agotado en este mapa.")
             break
+        evitar = [("%s%s %.0f XP/h" % ("[diario] " if e.inLog else "", (e.name or b"?").decode("utf-8", "replace"), e.xpPerHour))
+                  for e in avoid_list(ns, resultado).values()]
+        if evitar != evitar_antes:
+            print("     Evitar: " + ("; ".join(evitar) if evitar else "(nada)"))
+            evitar_antes = evitar
         s = steps[1]
         qid = s.questID
         nombre = (s.name or b"?").decode("utf-8", "replace")

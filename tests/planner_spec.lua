@@ -185,6 +185,40 @@ describe("Planner.Plan", function()
         assert.are.equal("1:pickup:0", plan.steps[1].key)
     end)
 
+    it("lista de misiones a evitar: primero las del diario, luego las peores; no las que solo no caben", function()
+        local plan = {
+            skipped = {
+                { quest = { id = 1, name = "Lejos", inLog = false }, reason = "rate", rate = 0.5 },
+                { quest = { id = 2, name = "Peor", inLog = false }, reason = "rate", rate = 0.1 },
+                { quest = { id = 3, name = "Diario", inLog = true }, reason = "rate", rate = 2 },
+                { quest = { id = 4, name = "Luego", inLog = false }, reason = "time", rate = 9 },
+                { quest = { id = 5, name = "Cadena", inLog = false }, reason = "chain", rate = 0 },
+            },
+        }
+        local list = Planner.AvoidList(plan)
+        local ids = {}
+        for i, entry in ipairs(list) do
+            ids[i] = entry.questID
+        end
+        assert.are.same({ 3, 2, 1 }, ids)
+        assert.is_true(list[1].inLog)
+        assert.are.equal(0.1 * 3600, list[2].xpPerHour)
+        assert.are.equal(2, #Planner.AvoidList(plan, 2))
+        assert.are.same({}, Planner.AvoidList(nil))
+    end)
+
+    it("de punta a punta: una del diario lejana y con poca XP sale para evitar", function()
+        local quests = {
+            Quest(1, 800, { 50, 50 }, { 55, 50 }, { 50, 50 }),
+            Quest(2, 800, { 50, 50 }, { 50, 55 }, { 50, 50 }),
+            Quest(9, 20, nil, { 2, 2 }, { 3, 3 }, { inLog = true }),
+        }
+        local list = Planner.AvoidList(Planner.Plan(quests, PARAMS))
+        assert.are.equal(1, #list)
+        assert.are.equal(9, list[1].questID)
+        assert.is_true(list[1].inLog)
+    end)
+
     it("sin misiones devuelve una ruta vacía, no un error", function()
         local plan = Planner.Plan({}, PARAMS)
         assert.are.same({}, plan.steps)

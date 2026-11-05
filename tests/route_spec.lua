@@ -65,7 +65,7 @@ local function Client(world)
                 return ids
             end,
             GetQuestsOnMap = function()
-                return {}
+                return world.pois or {}
             end,
             GetNumQuestLogEntries = function()
                 return #world.order, #world.order
@@ -200,6 +200,40 @@ describe("ruta en el cliente simulado", function()
         env:Login()
         env:Advance(1.1)
         assert.is_nil(world.waypoint)
+    end)
+
+    it("la ventana lista para evitar una misión del diario lejana y con poca XP", function()
+        local world = NewWorld()
+        local env, ns = Boot(world)
+        -- Misión nueva (la base no la conoce) con su punto de interés en la otra punta del mapa.
+        world.pois = { { questID = 99999, x = 0.02, y = 0.02 } }
+        world.log[99999] = {
+            title = "Recado lejano",
+            complete = false,
+            xp = 10,
+            objectives = { { type = "monster", finished = false, numFulfilled = 0, numRequired = 3 } },
+        }
+        world.order[#world.order + 1] = 99999
+        env:Fire("QUEST_ACCEPTED", 99999)
+        env:Advance(1.1)
+        local function Texts()
+            local texts = {}
+            for _, fs in ipairs(env:Widgets("FontString")) do
+                if fs:IsShown() then
+                    texts[#texts + 1] = fs:GetText() or ""
+                end
+            end
+            return table.concat(texts, "\n")
+        end
+        local all = Texts()
+        assert.is_truthy(all:find("Avoid (1):", 1, true))
+        assert.is_truthy(all:find("Recado lejano: abandon it or leave it for later", 1, true))
+        for _, step in ipairs(ns.Route.plan.steps) do
+            assert.are_not.equal(99999, step.questID)
+        end
+        -- Con la opción apagada, la sección desaparece.
+        env:SettingsRegistry().settings[env:AddonName() .. "_showAvoid"]:SetValue(false)
+        assert.is_falsy(Texts():find("Avoid (", 1, true))
     end)
 
     it("en una estancia sin mapa lo dice en vez de fallar", function()

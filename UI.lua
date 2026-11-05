@@ -1,10 +1,12 @@
--- Ventana con los próximos pasos de la ruta. Se mueve arrastrando el título; clic en un paso pone
--- la flecha allí; clic derecho en un paso ignora esa misión.
+-- Ventana con los próximos pasos de la ruta y, debajo, las misiones que conviene evitar. Se mueve
+-- arrastrando el título; clic en un paso pone la flecha allí; clic derecho en un paso o en una
+-- misión a evitar la ignora.
 local _, ns = ...
 local L = ns.L
 local module = ns:NewModule("UI")
 
 local WIDTH, LINE = 330, 16
+local MAX_AVOID = 5
 
 local KIND_MARK = {
     pickup = "|cffffd100!|r",
@@ -39,6 +41,12 @@ local function StepText(step)
     )
 end
 ns.StepText = StepText
+
+local function AvoidText(entry)
+    local format = entry.inLog and L.AVOID_LOG or L.AVOID_NEAR
+    return "|cffff5555x|r " .. format:format(entry.name or ("#" .. entry.questID), AbbreviateNumbers(entry.xpPerHour))
+end
+ns.AvoidText = AvoidText
 
 function module:OnEnable()
     local db = ns.db
@@ -87,19 +95,18 @@ function module:OnEnable()
     summary:SetPoint("RIGHT", -10, 0)
     summary:SetJustifyH("LEFT")
 
+    local avoidHeader = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    avoidHeader:SetJustifyH("LEFT")
+    avoidHeader:SetTextColor(1, 0.4, 0.4)
+
     self.frame, self.summary, self.lines = frame, summary, {}
+    self.avoidHeader, self.avoidLines = avoidHeader, {}
     self:Refresh()
 end
 
-function module:GetLine(index)
-    local line = self.lines[index]
-    if line then
-        return line
-    end
-    line = CreateFrame("Button", nil, self.frame)
+local function NewLine(parent)
+    local line = CreateFrame("Button", nil, parent)
     line:SetHeight(LINE)
-    line:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -4 - (index - 1) * LINE)
-    line:SetPoint("RIGHT", self.frame, "RIGHT", -10, 0)
     line:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local text = line:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     text:SetAllPoints()
@@ -107,13 +114,31 @@ function module:GetLine(index)
     text:SetWordWrap(false)
     line.text = text
     line:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    line:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    return line
+end
+
+local function IgnoreFromLine(entry)
+    ns.Route:Ignore(entry.questID)
+    ns:Print(L.IGNORED:format(entry.name or entry.questID))
+end
+
+function module:GetLine(index)
+    local line = self.lines[index]
+    if line then
+        return line
+    end
+    line = NewLine(self.frame)
+    line:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -4 - (index - 1) * LINE)
+    line:SetPoint("RIGHT", self.frame, "RIGHT", -10, 0)
     line:SetScript("OnClick", function(clicked, button)
         if not clicked.step then
             return
         end
         if button == "RightButton" then
-            ns.Route:Ignore(clicked.step.questID)
-            ns:Print(L.IGNORED:format(clicked.step.name or clicked.step.questID))
+            IgnoreFromLine(clicked.step)
         else
             ns.Route:SetWaypoint(clicked.step)
         end
@@ -128,10 +153,42 @@ function module:GetLine(index)
         GameTooltip:AddLine(L.TT_CLICK, 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
-    line:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
     self.lines[index] = line
+    return line
+end
+
+function module:GetAvoidLine(index)
+    local line = self.avoidLines[index]
+    if line then
+        return line
+    end
+    line = NewLine(self.frame)
+    line:SetPoint("TOPLEFT", self.avoidHeader, "BOTTOMLEFT", 0, -2 - (index - 1) * LINE)
+    line:SetPoint("RIGHT", self.frame, "RIGHT", -10, 0)
+    line:SetScript("OnClick", function(clicked, button)
+        if clicked.entry and button == "RightButton" then
+            IgnoreFromLine(clicked.entry)
+        end
+    end)
+    line:SetScript("OnEnter", function(hovered)
+        local entry = hovered.entry
+        if not entry then
+            return
+        end
+        local plan = ns.Route.plan
+        GameTooltip:SetOwner(hovered, "ANCHOR_RIGHT")
+        GameTooltip:SetText(entry.name or "")
+        GameTooltip:AddLine(entry.inLog and L.TT_AVOID_LOG or L.TT_AVOID_NEAR, 1, 1, 1, true)
+        GameTooltip:AddLine(
+            L.TT_AVOID_RATE:format(AbbreviateNumbers(entry.xpPerHour), AbbreviateNumbers(plan and plan.xpPerHour or 0)),
+            1,
+            0.82,
+            0
+        )
+        GameTooltip:AddLine(L.TT_AVOID_CLICK, 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    self.avoidLines[index] = line
     return line
 end
 
@@ -175,7 +232,31 @@ function module:Refresh()
             line:Hide()
         end
     end
-    frame:SetHeight(46 + (self.summary:GetStringHeight() or 12) + shown * LINE)
+    -- Misiones a evitar, debajo de los pasos.
+    local avoid = (db.showAvoid and route.status == "ready") and ns.Planner.AvoidList(route.plan, MAX_AVOID) or {}
+    self.avoidList = avoid
+    local header = self.avoidHeader
+    header:ClearAllPoints()
+    header:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -8 - shown * LINE)
+    if #avoid > 0 then
+        header:SetText(L.AVOID_HEADER:format(#avoid))
+        header:Show()
+    else
+        header:Hide()
+    end
+    for i = 1, math.max(#avoid, #self.avoidLines) do
+        local line = self:GetAvoidLine(i)
+        local entry = avoid[i]
+        line.entry = entry
+        if entry then
+            line.text:SetText(AvoidText(entry))
+            line:Show()
+        else
+            line:Hide()
+        end
+    end
+    local avoidHeight = #avoid > 0 and (8 + LINE + #avoid * LINE) or 0
+    frame:SetHeight(46 + (self.summary:GetStringHeight() or 12) + shown * LINE + avoidHeight)
     frame:Show()
 end
 
