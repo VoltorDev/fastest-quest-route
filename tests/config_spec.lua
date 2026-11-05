@@ -19,6 +19,9 @@ local EXPECTED = {
     showAvoid = "boolean",
     openMapOnClick = "boolean",
     useTomTom = "boolean",
+    autoAccept = "boolean",
+    autoTurnIn = "boolean",
+    useLearned = "boolean",
     maxSteps = "number",
     maxAbove = "number",
     scale = "number",
@@ -48,7 +51,7 @@ describe("opciones en Settings", function()
         assert.are.equal(1.25, registry.settings[env:AddonName() .. "_scale"]:GetValue()) -- no pisa lo guardado
     end)
 
-    it("crea seis casillas y tres deslizadores con sus formatos", function()
+    it("crea nueve casillas y tres deslizadores con sus formatos", function()
         local env = WowEnv.boot(TOC)
         local kinds, sliders = {}, {}
         for _, control in ipairs(env:SettingsRegistry().controls) do
@@ -57,10 +60,20 @@ describe("opciones en Settings", function()
                 sliders[#sliders + 1] = control.options
             end
         end
-        assert.are.same(
-            { "Checkbox", "Checkbox", "Checkbox", "Checkbox", "Checkbox", "Checkbox", "Slider", "Slider", "Slider" },
-            kinds
-        )
+        assert.are.same({
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Checkbox",
+            "Slider",
+            "Slider",
+            "Slider",
+        }, kinds)
         local right = env.MinimalSliderWithSteppersMixin.Label.Right
         assert.are.equal("12", sliders[1].formatters[right](12))
         assert.are.equal("+2", sliders[2].formatters[right](2))

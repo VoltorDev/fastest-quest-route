@@ -18,8 +18,19 @@ local function KillXP(level, count)
     return (level * 5 + 45) * math.max(count or 0, 0)
 end
 
-local function ObjectiveWork(kind, count)
+-- Un objetivo da XP de muertes si es matar o si su objeto cae de PNJ. Tiene que valer lo mismo antes
+-- y después de aceptar la misión: antes, las de recoger objetos de botín perdían esa XP al entrar en
+-- el diario, la ruta las valoraba de pronto a la mitad y podía mandarlas a «Evitar» recién cogidas.
+local function GivesKillXP(group)
+    return group.kind == "monster" or (group.kind == "item" and group.fromNpc)
+end
+
+-- Cada nivel que la misión está por encima del jugador hace el trabajo un 25 % más lento (enemigos
+-- más duros, más descanso). Sin esto, una de +2 solo se veía como «más XP» y adelantaba a las de tu
+-- nivel, que se quedaban atrás hasta volverse grises.
+local function ObjectiveWork(kind, count, above)
     local work = (ns.Data.WORK[kind] or 30) * math.max(count or 1, 1)
+    work = work * (1 + 0.25 * math.max(above or 0, 0))
     return math.min(work, MAX_WORK)
 end
 
@@ -71,10 +82,14 @@ local function BuildLogQuest(data, questID, logQuest, uiMap, ref, playerLevel)
             quest.objectives[#quest.objectives + 1] = {
                 x = center.x,
                 y = center.y,
-                work = ObjectiveWork(group.kind, remaining),
+                work = ObjectiveWork(
+                    group.kind,
+                    remaining,
+                    (Builder.QuestLevel(data, questID, logQuest) or playerLevel) - playerLevel
+                ),
                 label = group.kind,
             }
-            if group.kind == "monster" then
+            if GivesKillXP(group) then
                 quest.killXP = (quest.killXP or 0) + KillXP(playerLevel, remaining)
             end
         end
@@ -102,16 +117,15 @@ local function BuildAvailableQuest(data, questID, uiMap, ref, playerLevel)
         objectives = {},
     }
     quest.xp, quest.xpEstimated = data:EstimateXP(questID, playerLevel)
+    local above = (Builder.QuestLevel(data, questID) or playerLevel) - playerLevel
     for _, group in ipairs(data:ObjectiveGroups(questID, uiMap)) do
         if #group.points == 0 then
             return nil -- algún objetivo está en otro mapa: no se propone desde aquí
         end
         local center = ns.Data.Cluster(group.points, pickup)
         quest.objectives[#quest.objectives + 1] =
-            { x = center.x, y = center.y, work = ObjectiveWork(group.kind, group.count), label = group.kind }
-        if group.kind == "monster" then
-            quest.killXP = (quest.killXP or 0) + KillXP(playerLevel, group.count)
-        elseif group.kind == "item" then
+            { x = center.x, y = center.y, work = ObjectiveWork(group.kind, group.count, above), label = group.kind }
+        if GivesKillXP(group) then
             quest.killXP = (quest.killXP or 0) + KillXP(playerLevel, group.count)
         end
     end
@@ -123,10 +137,17 @@ end
 --           candidates = { questIDs con dador en el mapa }, isDoable = función opcional }
 -- Devuelve la lista para Planner.Plan y las misiones del diario que quedan fuera de este mapa.
 function Builder.Build(data, state)
-    local quests, offMap = {}, {}
+    local quests, offMap, tooHigh = {}, {}, {}
     local player, ref = state.player, state.position
+    local maxAbove = state.maxAbove or Builder.MAX_ABOVE
     for questID, logQuest in pairs(state.log or {}) do
-        if not (player.ignored and player.ignored[questID]) then
+        -- Una del diario por encima del tope (naranja o roja) se deja para más adelante salvo si ya
+        -- está completa: antes entraba sin filtro de nivel y, si estaba cerca, era el primer paso
+        -- (a nivel 7, «Asegurar las rutas», de nivel 11).
+        local level = Builder.QuestLevel(data, questID, logQuest)
+        if level and level > player.level + maxAbove and not logQuest.complete then
+            tooHigh[#tooHigh + 1] = questID
+        elseif not (player.ignored and player.ignored[questID]) then
             local quest = BuildLogQuest(data, questID, logQuest, state.uiMap, ref, player.level)
             if quest then
                 quests[#quests + 1] = quest
@@ -148,9 +169,86 @@ function Builder.Build(data, state)
             end
         end
     end
+    for questID, entry in pairs(state.learned or {}) do
+        local quest = Builder.BuildLearnedQuest(data, questID, entry, state.uiMap, player)
+        if quest then
+            quests[#quests + 1] = quest
+        end
+    end
     Builder.AddFollowUps(data, state, quests)
+    -- Nombre del cliente si lo tiene: QuestieDB trae las misiones nuevas de Forever solo en inglés.
+    if state.titleOf then
+        for _, quest in ipairs(quests) do
+            if not quest.inLog and not quest.learned then
+                local title = state.titleOf(quest.id)
+                if type(title) == "string" and title ~= "" then
+                    quest.name = title
+                end
+            end
+        end
+    end
     table.sort(offMap)
-    return quests, offMap
+    table.sort(tooHigh)
+    return quests, offMap, tooHigh
+end
+
+-- Nivel de una misión: el del diario si lo da el cliente, si no el de la base. nil si no se sabe.
+function Builder.QuestLevel(data, questID, logQuest)
+    local level = logQuest and logQuest.level
+    if not level or level <= 0 then
+        level = data.lib.Quest.questLevel(questID)
+    end
+    if level and level > 0 then
+        return level
+    end
+    return nil
+end
+
+-- Misión aprendida jugando (Learned.lua) que este personaje aún puede coger en este mapa.
+-- entry = { title, map, pickup = {x,y}, done = {map,x,y}?, turnin = {map,x,y}?, level, faction,
+--           anyFaction, classes = {[classID]=true}, anyClass, xp?, xpLevel? }
+function Builder.BuildLearnedQuest(data, questID, entry, uiMap, player)
+    if type(entry) ~= "table" or entry.map ~= uiMap or not entry.pickup then
+        return nil
+    end
+    if player.completed[questID] or player.inLog[questID] or (player.ignored and player.ignored[questID]) then
+        return nil
+    end
+    if entry.level and player.level < entry.level then
+        return nil
+    end
+    if entry.faction and player.faction and not entry.anyFaction and entry.faction ~= player.faction then
+        return nil
+    end
+    if not entry.anyClass and player.classID and entry.classes and next(entry.classes) then
+        if not entry.classes[player.classID] then
+            return nil
+        end
+    end
+    local quest = {
+        id = questID,
+        name = entry.title or ("#" .. questID),
+        pickup = { x = entry.pickup.x, y = entry.pickup.y },
+        objectives = {},
+        learned = true,
+    }
+    if entry.done and entry.done.map == uiMap then
+        quest.objectives[1] = { x = entry.done.x, y = entry.done.y, work = 180, label = "learned" }
+    end
+    if entry.turnin and entry.turnin.map == uiMap then
+        quest.turnin = { x = entry.turnin.x, y = entry.turnin.y }
+    end
+    -- XP cobrada por otro personaje, ajustada como la de la base; si no hay, la mediana del nivel.
+    if entry.xp and entry.xpLevel then
+        quest.xp = ns.Data.AdjustXP(entry.xp, entry.xpLevel, player.level)
+    else
+        quest.xp = data:MedianXP(player.level)
+    end
+    quest.xpEstimated = true
+    if not quest.xp or quest.xp <= 0 then
+        return nil
+    end
+    return quest
 end
 
 -- Prerrequisitos de una misión que están entre `planned` (set de IDs).

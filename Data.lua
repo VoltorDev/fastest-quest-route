@@ -222,9 +222,12 @@ function Data:ObjectiveGroups(questID, uiMap)
     for _, item in ipairs(objectives[3] or {}) do
         local points = {}
         local itemID = item[1]
-        AppendNpcs(self, lib.Item.npcDrops(itemID), uiMap, points)
+        local npcDrops = lib.Item.npcDrops(itemID)
+        AppendNpcs(self, npcDrops, uiMap, points)
         AppendObjects(self, lib.Item.objectDrops(itemID), uiMap, points)
         Add("item", points)
+        -- Si cae de PNJ hay que matar para conseguirlo: cuenta como XP de muertes (Builder).
+        groups[#groups].fromNpc = type(npcDrops) == "table" and #npcDrops > 0
     end
     for _, credit in ipairs(objectives[5] or {}) do
         local points = {}
@@ -416,6 +419,139 @@ function Data:IndexStep(uiMap, budget)
         return state.list
     end
     return nil
+end
+
+-- Mapa (uiMap) donde empieza una misión, o nil. Usa el primer dador con zona conocida.
+function Data:StartMap(questID)
+    local starters = self.lib.Quest.startedBy(questID)
+    if type(starters) ~= "table" then
+        return nil
+    end
+    for kind, zoneOf in ipairs({ self.lib.Npc.zoneID, self.lib.Object.zoneID }) do
+        for _, id in ipairs(starters[kind] or {}) do
+            local zone = zoneOf(id)
+            local map = zone and self.areaToMap[zone]
+            if map and map > 0 then
+                return map
+            end
+        end
+    end
+    return nil
+end
+
+-- Índice de TODOS los mapas en una sola pasada (para recomendar zona). Troceado como IndexStep;
+-- al terminar rellena también el índice por mapa, así cambiar de zona ya no recorre la base.
+function Data:IndexAllStep(budget)
+    local state = self.allIndex
+    if state and state.done then
+        return state.byMap
+    end
+    if not state then
+        state = { ids = self.lib.Quest.GetAllIds(), pos = 0, byMap = {}, done = false }
+        self.allIndex = state
+    end
+    local stop = budget and math.min(#state.ids, state.pos + budget) or #state.ids
+    for i = state.pos + 1, stop do
+        local id = state.ids[i]
+        local map = self:StartMap(id)
+        if map then
+            state.byMap[map] = state.byMap[map] or {}
+            table.insert(state.byMap[map], id)
+        end
+    end
+    state.pos = stop
+    if stop < #state.ids then
+        return nil
+    end
+    state.done = true
+    for map, list in pairs(state.byMap) do
+        if not self.startIndex[map] then
+            self.startIndex[map] = { done = true, list = list }
+        end
+    end
+    return state.byMap
+end
+
+-- ¿Algún dador de la misión es amistoso con la facción ("Alliance"/"Horde")? Los PNJ de QuestieDB
+-- llevan friendlyToFaction = "A", "H", "AH" o nil. Si hay algún PNJ dador, manda él (las misiones
+-- de libros de Season of Discovery tienen PNJ de la Horda y además objetos); si solo hay objetos, es neutral.
+function Data:FriendlyStart(questID, faction)
+    local letter = faction == "Alliance" and "A" or faction == "Horde" and "H" or nil
+    local starters = self.lib.Quest.startedBy(questID)
+    if not letter or type(starters) ~= "table" then
+        return true
+    end
+    local npcs = starters[1] or {}
+    if #npcs == 0 then
+        return true -- solo objetos u objetos de botín: neutrales
+    end
+    for _, npc in ipairs(npcs) do
+        local friendly = self.lib.Npc.friendlyToFaction(npc)
+        if not friendly or friendly:find(letter, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Capitales (UiMapID): sus misiones son de clase, profesión o entregas de paso; no son zona de subida.
+Data.CAPITALS = {
+    [1453] = true, -- Ventormenta
+    [1454] = true, -- Orgrimmar
+    [1455] = true, -- Forjaz
+    [1456] = true, -- Cima del Trueno
+    [1457] = true, -- Darnassus
+    [1458] = true, -- Entrañas
+}
+
+-- Zonas con más XP disponible para el jugador, sin contar `exclude` (el mapa actual) ni las capitales.
+-- Devuelve { { map, count, xp, far } } de más a menos XP. Con `opts.continentOf` (mapa → continente)
+-- y `opts.continent` (el del jugador), las del mismo continente van antes que cualquiera de otro
+-- (`far = true`): sin eso, la suma de XP mandaba a un orco de nivel 8 a Tirisfal, la zona de inicio de
+-- los no-muertos al otro lado del mar, antes que a Los Baldíos. Requiere IndexAllStep terminado.
+function Data:RecommendZones(player, opts)
+    local byMap = self.allIndex and self.allIndex.done and self.allIndex.byMap
+    if not byMap then
+        return nil
+    end
+    local minLevel = player.level - (opts.below or 2)
+    local maxLevel = player.level + (opts.above or 2)
+    local list = {}
+    for map, ids in pairs(byMap) do
+        if map ~= opts.exclude and not Data.CAPITALS[map] then
+            local count, xp = 0, 0
+            for _, id in ipairs(ids) do
+                local level = self.lib.Quest.questLevel(id) or 0
+                local ok = level >= minLevel and level <= maxLevel and self:IsAvailable(id, player)
+                if ok and self:FriendlyStart(id, player.faction) then
+                    if not opts.isDoable or opts.isDoable(id) ~= false then
+                        count = count + 1
+                        xp = xp + (self:EstimateXP(id, player.level) or 0)
+                    end
+                end
+            end
+            if count >= (opts.minCount or 3) then
+                local far = false
+                if opts.continentOf and opts.continent then
+                    far = opts.continentOf(map) ~= opts.continent
+                end
+                list[#list + 1] = { map = map, count = count, xp = xp, far = far }
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.far ~= b.far then
+            return not a.far
+        end
+        if a.xp ~= b.xp then
+            return a.xp > b.xp
+        end
+        return a.map < b.map
+    end)
+    for i = #list, (opts.limit or 3) + 1, -1 do
+        list[i] = nil
+    end
+    return list
 end
 
 return Data

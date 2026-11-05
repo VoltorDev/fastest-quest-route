@@ -59,6 +59,7 @@ function module:OnEnable()
         "PLAYER_LEVEL_UP",
         "PLAYER_ENTERING_WORLD",
         "PLAYER_REGEN_ENABLED",
+        "PLAYER_MOUNT_DISPLAY_CHANGED",
     }) do
         ns:RegisterEvent(event, function()
             module:RequestUpdate()
@@ -68,6 +69,7 @@ function module:OnEnable()
         if questID then
             module.completed[questID] = true
         end
+        module.turnedIn = (module.turnedIn or 0) + 1
         module:RequestUpdate()
     end)
     self:RequestUpdate()
@@ -113,6 +115,7 @@ function module:ReadLog(uiMap)
             local xp = GetQuestLogRewardXP(id)
             log[id] = {
                 title = info.title,
+                level = type(info.level) == "number" and info.level or nil,
                 complete = C_QuestLog.ReadyForTurnIn(id) or C_QuestLog.IsComplete(id) or false,
                 objectives = objectives,
                 xp = type(xp) == "number" and xp or nil,
@@ -139,6 +142,8 @@ function module:ReadPlayer(log)
         level = UnitLevel("player"),
         raceMask = raceID and lib.Enum.raceMaskById[raceID] or nil,
         classMask = classID and 2 ^ (classID - 1) or nil,
+        classID = classID,
+        faction = UnitFactionGroup("player"),
         completed = self.completed,
         inLog = inLog,
         ignored = ns.charDB.ignored,
@@ -174,30 +179,95 @@ function module:Update()
         width, height = DEFAULT_SIZE[1], DEFAULT_SIZE[2]
     end
     local log = self:ReadLog(uiMap)
-    local quests, offMap = ns.Builder.Build(self.data, {
+    local player = self:ReadPlayer(log)
+    if ns.Learned then
+        ns.Learned:Observe(log, { map = uiMap, x = here.x, y = here.y })
+    end
+    local quests, offMap, tooHigh = ns.Builder.Build(self.data, {
         uiMap = uiMap,
         position = here,
-        player = self:ReadPlayer(log),
+        player = player,
         log = log,
         candidates = candidates,
         isDoable = ns.db.useQuestie and GetQuestieDoable() or nil,
         maxAbove = ns.db.maxAbove,
+        learned = ns.db.useLearned and ns.db.learned or nil,
+        titleOf = C_QuestLog.GetTitleForQuestID,
     })
     local previous = self.uiMap == uiMap and self.previousKeys or nil
     self.plan = ns.Planner.Plan(quests, {
         start = here,
         w = width,
         h = height,
-        speed = ns.db.speed,
+        speed = module.Speed(),
         previous = previous,
     })
     self.uiMap, self.offMap, self.status = uiMap, offMap, "ready"
+    self.tooHigh = tooHigh or {}
     self.previousKeys = {}
     for _, step in ipairs(self.plan.steps) do
         self.previousKeys[#self.previousKeys + 1] = step.key
     end
     self:UpdateWaypoint()
+    self:UpdateZones(player, uiMap)
     ns:RefreshUI()
+end
+
+-- Siguiente zona recomendada: la que más XP disponible tiene para tu nivel. El índice de todos los
+-- mapas se construye una vez, troceado por fotogramas, y la recomendación solo se recalcula al
+-- cambiar de nivel, de mapa o al entregar una misión.
+function module:UpdateZones(player, uiMap)
+    local byMap = self.data:IndexAllStep(INDEX_BUDGET)
+    if not byMap then
+        if not self.zoneIndexing then
+            self.zoneIndexing = true
+            C_Timer.After(0, function()
+                self.zoneIndexing = false
+                self:RequestUpdate()
+            end)
+        end
+        return
+    end
+    local key = player.level .. ":" .. (self.turnedIn or 0) .. ":" .. uiMap
+    if key == self.zonesKey then
+        return
+    end
+    self.zonesKey = key
+    self.zones = self.data:RecommendZones(player, {
+        exclude = uiMap,
+        above = ns.db.maxAbove,
+        isDoable = ns.db.useQuestie and GetQuestieDoable() or nil,
+        continentOf = module.ContinentOf,
+        continent = module.ContinentOf(uiMap),
+    })
+end
+
+-- Continente (UiMapID) de un mapa, subiendo por los padres de C_Map.GetMapInfo. Se guarda en caché.
+local continentCache = {}
+function module.ContinentOf(map)
+    if continentCache[map] ~= nil then
+        return continentCache[map] or nil
+    end
+    local continentType = Enum and Enum.UIMapType and Enum.UIMapType.Continent or 2
+    local current, found = map, false
+    for _ = 1, 10 do
+        local info = current and C_Map.GetMapInfo(current)
+        if not info then
+            break
+        end
+        if info.mapType == continentType then
+            found = current
+            break
+        end
+        current = info.parentMapID
+    end
+    continentCache[map] = found
+    return found or nil
+end
+
+function module.ZoneName(map)
+    local info = C_Map.GetMapInfo(map)
+    return info and info.name or ("#" .. map)
 end
 
 -- Flecha de TomTom, si está instalado: misma llamada que usa Questie en Forever
@@ -254,6 +324,19 @@ function module:UpdateWaypoint()
     if step and ns.db.autoWaypoint then
         self:SetWaypoint(step)
     end
+end
+
+-- Velocidad para estimar tiempos: la de a pie de las opciones, o la real con montura. GetUnitSpeed
+-- puede ser secreta con las estadísticas restringidas: entonces se queda la de las opciones.
+function module.Speed()
+    local base = ns.db.speed
+    if IsMounted() then
+        local _, runSpeed = GetUnitSpeed("player")
+        if type(runSpeed) == "number" and not issecretvalue(runSpeed) and runSpeed > base then
+            return runSpeed
+        end
+    end
+    return base
 end
 
 function module:CurrentStep()

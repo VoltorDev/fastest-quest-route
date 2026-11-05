@@ -15,6 +15,14 @@ qué recoger, qué objetivo hacer y dónde entregar, con la flecha del mapa en e
   misiones evitar**: bajo la ruta, una sección «Evitar» lista hasta 5, primero las de tu diario que conviene
   abandonar o dejar para luego y después las cercanas que no merecen el desvío, con su XP por hora (el tooltip la
   compara con la de tu ruta). Clic derecho en una la oculta. `/ruta debug` da la lista completa con motivos.
+- **Acepta y entrega las misiones sola** al hablar con el PNJ: las que convienen (no grises ni repetibles, salvo
+  que la ruta las pida; nunca las ignoradas ni las de «Evitar»). Si hay que elegir recompensa o pagar, lo dejas
+  tú, igual que las de JcJ y las que da un objeto. Mantén **Mayús** al hablar para hacerlo a mano.
+- **Aprende las misiones nuevas de Forever** que la base de Questie no tiene: al hacerlas guarda dónde se cogen,
+  dónde se terminan y dónde se entregan, y se las propone a tus otros personajes (misma facción y, mientras solo
+  la haya cogido una clase, esa clase).
+- **Te dice a qué zona ir después**: cuando en la tuya quedan pocos pasos, la ventana propone la zona con más XP
+  de misiones para tu nivel (con dador amistoso para tu facción). `/ruta zonas` da las tres mejores.
 - Se recalcula sola al aceptar, avanzar o entregar misiones, al subir de nivel y al cambiar de zona; nunca en
   combate.
 
@@ -28,11 +36,12 @@ consulta en el juego con la API pública de QuestieDB.
   por personaje).
 - Si tienes **TomTom** instalado, su flecha también apunta al paso (se puede desactivar).
 - El addon no mueve al personaje: Blizzard bloquea el movimiento desde addons y su EULA lo considera un bot.
-- `/ruta recalcular`, `/ruta ignorar [ID]`, `/ruta restaurar` (devuelve las ignoradas), `/ruta config`,
+- `/ruta zonas`, `/ruta recalcular`, `/ruta ignorar [ID]`, `/ruta restaurar` (devuelve las ignoradas), `/ruta config`,
   `/ruta debug`, `/ruta reset confirmar`.
 - Botón del compartimento de addons: clic para mostrar u ocultar; clic derecho para las opciones.
-- Opciones: flecha automática, abrir el mapa al hacer clic, usar TomTom, mostrar misiones a evitar, pasos visibles, niveles máximos por encima, usar las
-  reglas de Questie y escala.
+- Opciones: flecha automática, abrir el mapa al hacer clic, usar TomTom, mostrar misiones a evitar, aceptar
+  solo, entregar solo, proponer misiones aprendidas, pasos visibles, niveles máximos por encima, usar las reglas
+  de Questie y escala.
 
 ## Cómo calcula (y sus límites)
 
@@ -42,8 +51,11 @@ misiones de una cadena), mejora local moviendo pasos y misiones enteras, y estab
 - Distancias en línea recta dentro del mapa: no conoce montañas, caminos ni vuelos.
 - El tiempo de cada objetivo es una estimación (unos 14 s por enemigo, 24 s por objeto de botín).
 - Solo planifica el mapa en el que estás; las misiones del diario de otras zonas salen como «fuera de este mapa».
+  La siguiente zona se elige por XP disponible, sin contar el viaje (no conoce vuelos ni caminos).
 - Las misiones nuevas de Forever que QuestieDB aún no tiene se ven si están en tu diario (con el punto de interés
-  de Blizzard), pero no se proponen para recoger.
+  de Blizzard). Se proponen para recoger solo después de que algún personaje tuyo las haya hecho, y su punto de
+  objetivo es donde ese personaje las terminó (aproximado).
+- Con montura usa la velocidad real; a pie, la de las opciones (7 yardas/s).
 
 ## Desarrollo
 

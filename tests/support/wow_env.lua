@@ -671,6 +671,11 @@ function M.new(opts)
         GetAddOnRestrictionState = function(k) return state.restriction[k] or 0 end,
     }
     G.InCombatLockdown = function() return state.combat end
+    -- Montura, modificadores y facción (RutaMisiones: velocidad y Mayús para el modo manual).
+    G.IsMounted = function() return state.mounted or false end
+    G.GetUnitSpeed = function() return 0, state.runSpeed or 7, 0, 0 end
+    G.IsShiftKeyDown = function() return state.shift or false end
+    G.UnitFactionGroup = function() return opts.faction or "Horde", opts.faction or "Horde" end
     G.C_ChatInfo = { InChatMessagingLockdown = function() return state.restriction[5] == 2 end }
     G.C_CVar = { GetCVar = function(name) return (opts.cvars or {})[name] or "0" end }
     G.GetRealmName = function() return opts.realm or "Forever PvP" end -- valor ficticio

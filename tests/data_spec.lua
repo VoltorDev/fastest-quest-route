@@ -196,6 +196,117 @@ describe("Builder", function()
         assert.are.equal(0, #quests)
     end)
 
+    it("una misión de objetos de botín vale lo mismo antes y después de aceptarla", function()
+        local loot = Data.New(Fake.new({
+            quests = {
+                [200] = {
+                    name = "Colmillos",
+                    startedBy = { { 1 } },
+                    finishedBy = { { 1 } },
+                    requiredLevel = 1,
+                    questLevel = 5,
+                    objectives = { nil, nil, { { 500 } } },
+                    objectivesText = { "Trae 6 colmillos." },
+                },
+            },
+            npcs = {
+                [1] = { name = "Gornek", zoneID = 14, spawns = { [14] = { { 42, 68 } } } },
+                [10] = { name = "Jabalí", zoneID = 14, spawns = { [14] = { { 40, 60 } } } },
+            },
+            items = { [500] = { npcDrops = { 10 } } },
+            xp = { [200] = { 5, 400 } },
+        }))
+        local before = Builder.Build(loot, {
+            uiMap = 1411,
+            position = here,
+            player = Player({ level = 5 }),
+            log = {},
+            candidates = { 200 },
+        })[1]
+        local after = Builder.Build(loot, {
+            uiMap = 1411,
+            position = here,
+            player = Player({ level = 5, inLog = { [200] = true } }),
+            log = {
+                [200] = {
+                    title = "Colmillos",
+                    complete = false,
+                    objectives = { { type = "item", finished = false, numFulfilled = 0, numRequired = 6 } },
+                },
+            },
+            candidates = {},
+        })[1]
+        assert.is_true(before.killXP > 0)
+        assert.are.equal(before.killXP, after.killXP)
+    end)
+
+    it("deja para luego las del diario demasiado altas, salvo si ya están completas", function()
+        local function Log(level, complete)
+            return {
+                title = "Asegurar las rutas",
+                level = level,
+                complete = complete,
+                poi = { x = 52, y = 22 },
+                objectives = { { type = "monster", finished = complete, numFulfilled = 0, numRequired = 12 } },
+            }
+        end
+        local quests, _, tooHigh = Builder.Build(data, {
+            uiMap = 1411,
+            position = here,
+            player = Player({ level = 7, inLog = { [99001] = true, [99002] = true, [99003] = true } }),
+            log = { [99001] = Log(11, false), [99002] = Log(9, false), [99003] = Log(11, true) },
+            candidates = {},
+        })
+        assert.are.same({ 99001 }, tooHigh) -- nivel 11 a nivel 7: fuera de la ruta
+        local ids = {}
+        for _, quest in ipairs(quests) do
+            ids[#ids + 1] = quest.id
+        end
+        table.sort(ids)
+        assert.are.same({ 99002, 99003 }, ids) -- +2 se queda; la completa se entrega aunque sea alta
+    end)
+
+    it("un objetivo por encima de tu nivel cuenta como más lento", function()
+        local function Work(level)
+            return Builder.Build(data, {
+                uiMap = 1411,
+                position = here,
+                player = Player({ level = level }),
+                log = {},
+                candidates = { 100 },
+            })[1].objectives[1].work
+        end
+        assert.is_true(Work(1) > Work(2)) -- la misión es de nivel 2
+        assert.are.equal(Work(2), Work(3)) -- por debajo no se abarata
+    end)
+
+    it("usa el nombre del cliente para las disponibles, no para las del diario", function()
+        local quests = Builder.Build(data, {
+            uiMap = 1411,
+            position = here,
+            player = Player({ inLog = { [102] = true } }),
+            log = {
+                [102] = {
+                    title = "Lejos (diario)",
+                    complete = false,
+                    poi = { x = 50, y = 50 },
+                    objectives = { { type = "monster", finished = false, numFulfilled = 0, numRequired = 3 } },
+                },
+            },
+            candidates = { 100, 101 },
+            titleOf = function(id)
+                return id == 100 and "Jabalíes del cliente" or (id == 102 and "Otro" or nil)
+            end,
+        })
+        local byID = {}
+        for _, quest in ipairs(quests) do
+            byID[quest.id] = quest
+        end
+        assert.are.equal("Jabalíes del cliente", byID[100].name)
+        assert.are.equal("Lejos (diario)", byID[102].name)
+        assert.are.equal("Más jabalíes", byID[101].name) -- sin título en el cliente: el de la base
+    end)
+
     it("de punta a punta: la ruta hace la cadena 100 → 101 en orden", function()
         local quests = Builder.Build(data, {
             uiMap = 1411,
@@ -217,5 +328,95 @@ describe("Builder", function()
             end
         end
         assert.is_true(Index("100:turnin") < Index("101:pickup"))
+    end)
+end)
+
+describe("Data: siguiente zona", function()
+    local function World()
+        local function Q(name, npc, level, extra)
+            local q = { name = name, startedBy = { { npc } }, finishedBy = { { npc } }, requiredLevel = 1 }
+            q.questLevel = level
+            for k, v in pairs(extra or {}) do
+                q[k] = v
+            end
+            return q
+        end
+        return Fake.new({
+            quests = {
+                [1] = Q("Aquí", 1, 3),
+                [2] = Q("Baldíos 1", 2, 3),
+                [3] = Q("Baldíos 2", 2, 4),
+                [4] = Q("Baldíos alta", 2, 12),
+                [5] = Q("Lejos 1", 3, 3),
+                [6] = Q("Baldíos hecha", 2, 3),
+                [7] = Q("Hostil", 4, 3),
+            },
+            npcs = {
+                [1] = { name = "A", zoneID = 14, spawns = { [14] = { { 10, 10 } } } },
+                [2] = { name = "B", zoneID = 17, spawns = { [17] = { { 50, 50 } } } },
+                [3] = { name = "C", zoneID = 999, spawns = {} },
+                [4] = { name = "D", zoneID = 17, friendlyToFaction = "A", spawns = {} },
+            },
+            xp = { [2] = { 3, 300 }, [3] = { 4, 400 } },
+        })
+    end
+
+    it("indexa todos los mapas troceado y rellena el índice por mapa", function()
+        local data = Data.New(World())
+        assert.is_nil(data:IndexAllStep(2))
+        local byMap = data:IndexAllStep(100)
+        assert.are.same({ 1 }, byMap[1411])
+        assert.are.equal(5, #byMap[1413])
+        assert.is_nil(byMap[999]) -- zona sin mapa conocido
+        assert.are.same({ 1 }, data:IndexStep(1411, 1)) -- ya hecho: no recorre otra vez
+    end)
+
+    it("recomienda la zona con más XP disponible, sin la actual ni lo de fuera de nivel o hecho", function()
+        local data = Data.New(World())
+        assert.is_nil(data:RecommendZones(Player({ level = 3 }), { exclude = 1411 }))
+        data:IndexAllStep()
+        local zones = data:RecommendZones(Player({ level = 3, faction = "Horde", completed = { [6] = true } }), {
+            exclude = 1411,
+            minCount = 1,
+        })
+        assert.are.equal(1, #zones)
+        assert.are.equal(1413, zones[1].map)
+        assert.are.equal(2, zones[1].count) -- la de nivel 12, la hecha y la de un PNJ de la Alianza no cuentan
+        assert.is_true(zones[1].xp > 0)
+        local other = data:RecommendZones(Player({ level = 3 }), { exclude = 1413, minCount = 1 })
+        assert.are.equal(1411, other[1].map)
+        assert.are.same({}, data:RecommendZones(Player({ level = 3 }), { exclude = 1413 })) -- menos de 3
+    end)
+
+    it("prefiere las zonas del mismo continente y nunca propone capitales", function()
+        local function Q(npc)
+            return { name = "Q", startedBy = { { npc } }, finishedBy = { { npc } }, requiredLevel = 1, questLevel = 8 }
+        end
+        local lib = Fake.new({
+            quests = { [1] = Q(1), [2] = Q(2), [3] = Q(2), [4] = Q(2), [5] = Q(3), [6] = Q(3), [7] = Q(3) },
+            npcs = {
+                [1] = { name = "Durotar", zoneID = 14, spawns = {} },
+                [2] = { name = "Tirisfal", zoneID = 85, spawns = {} }, -- otro continente, más XP
+                [3] = { name = "Orgrimmar", zoneID = 1637, spawns = {} },
+            },
+        })
+        lib.Support.Get("ZoneDB").private.areaIdToUiMapId =
+            "return { [14] = 1411, [17] = 1413, [85] = 1420, [1637] = 1454 }"
+        local data = Data.New(lib)
+        data:IndexAllStep()
+        local continent = { [1411] = 12, [1413] = 12, [1454] = 12, [1420] = 13 }
+        local zones = data:RecommendZones(Player({ level = 8 }), {
+            exclude = 1413,
+            minCount = 1,
+            continentOf = function(map)
+                return continent[map]
+            end,
+            continent = 12,
+        })
+        assert.are.equal(2, #zones) -- Orgrimmar (capital) fuera
+        assert.are.equal(1411, zones[1].map) -- mismo continente primero aunque dé menos XP
+        assert.is_false(zones[1].far)
+        assert.are.equal(1420, zones[2].map)
+        assert.is_true(zones[2].far)
     end)
 end)

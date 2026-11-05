@@ -57,6 +57,16 @@ function ns:PrintDiagnostics()
             print(("    %d %s — %s"):format(entry.quest.id, tostring(entry.quest.name), reason))
         end
     end
+    if self.Learned then
+        print("  " .. L.DEBUG_LEARNED:format(self.Learned:Count()))
+    end
+    print(
+        ("  autoAccept=%s autoTurnIn=%s velocidad=%.1f"):format(
+            tostring(self.db.autoAccept),
+            tostring(self.db.autoTurnIn),
+            route.Speed and route.Speed() or self.db.speed
+        )
+    )
     print(("  InCombatLockdown=%s"):format(tostring(InCombatLockdown())))
     for _, warning in ipairs(client.GetWarnings()) do
         print("  AVISO: " .. warning)
@@ -77,6 +87,8 @@ local ALIASES = {
     opciones = "config",
     debug = "debug",
     reset = "reset",
+    zonas = "zones",
+    zones = "zones",
 }
 
 SLASH_RUTAMISIONES1 = "/ruta"
@@ -105,6 +117,18 @@ SlashCmdList.RUTAMISIONES = function(message)
         ns:OpenSettings()
     elseif command == "debug" then
         ns:PrintDiagnostics()
+    elseif command == "zones" then
+        local zones = ns.Route.zones
+        if not zones then
+            ns:Print(L.ZONES_PENDING)
+        elseif #zones == 0 then
+            ns:Print(L.ZONES_NONE)
+        else
+            ns:Print(L.ZONES_HEADER)
+            for i, zone in ipairs(zones) do
+                print(L.ZONES_LINE:format(i, ns.Route.ZoneName(zone.map), zone.count, AbbreviateNumbers(zone.xp)))
+            end
+        end
     elseif command == "reset" then
         if argument == "confirm" or argument == "confirmar" then
             ns:ResetDB()

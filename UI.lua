@@ -219,8 +219,15 @@ function module:Refresh()
         if #route.offMap > 0 then
             text = text .. "\n" .. L.OFFMAP:format(#route.offMap)
         end
+        if route.tooHigh and #route.tooHigh > 0 then
+            text = text .. "\n" .. L.TOO_HIGH:format(#route.tooHigh)
+        end
         if #steps == 0 then
             text = text .. "\n" .. L.EMPTY
+        end
+        local zone = route.zones and route.zones[1]
+        if zone and #steps <= 3 then
+            text = text .. "\n" .. L.NEXT_ZONE:format(route.ZoneName(zone.map), zone.count)
         end
         self.summary:SetText(text)
     else
