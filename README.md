@@ -23,12 +23,15 @@ consulta en el juego con la API pública de QuestieDB.
 
 ## Uso
 
-- `/ruta`: muestra u oculta la ventana. Clic izquierdo en un paso pone la flecha allí; clic derecho ignora
-  esa misión (se guarda por personaje).
+- `/ruta`: muestra u oculta la ventana. Clic izquierdo en un paso (o en una misión de «Evitar») pone la flecha
+  de navegación allí y abre el mapa en esa zona (fuera de combate); clic derecho ignora esa misión (se guarda
+  por personaje).
+- Si tienes **TomTom** instalado, su flecha también apunta al paso (se puede desactivar).
+- El addon no mueve al personaje: Blizzard bloquea el movimiento desde addons y su EULA lo considera un bot.
 - `/ruta recalcular`, `/ruta ignorar [ID]`, `/ruta restaurar` (devuelve las ignoradas), `/ruta config`,
   `/ruta debug`, `/ruta reset confirmar`.
 - Botón del compartimento de addons: clic para mostrar u ocultar; clic derecho para las opciones.
-- Opciones: flecha automática, mostrar misiones a evitar, pasos visibles, niveles máximos por encima, usar las
+- Opciones: flecha automática, abrir el mapa al hacer clic, usar TomTom, mostrar misiones a evitar, pasos visibles, niveles máximos por encima, usar las
   reglas de Questie y escala.
 
 ## Cómo calcula (y sus límites)

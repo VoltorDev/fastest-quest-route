@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clic en un paso o en «Evitar»: flecha allí y mapa abierto en la zona (no en combate); flecha de TomTom si
+  está instalado. Opciones para ambas cosas.
 - Sección «Evitar» bajo la ruta: misiones del diario que conviene abandonar o dejar para luego y cercanas que
   no merecen el desvío, con su XP por hora; opción para ocultarla. Poda final del planificador para que las del
   diario también puedan salir de la ruta.

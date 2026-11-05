@@ -140,7 +140,7 @@ function module:GetLine(index)
         if button == "RightButton" then
             IgnoreFromLine(clicked.step)
         else
-            ns.Route:SetWaypoint(clicked.step)
+            ns.Route:GoTo(clicked.step)
         end
     end)
     line:SetScript("OnEnter", function(hovered)
@@ -166,8 +166,13 @@ function module:GetAvoidLine(index)
     line:SetPoint("TOPLEFT", self.avoidHeader, "BOTTOMLEFT", 0, -2 - (index - 1) * LINE)
     line:SetPoint("RIGHT", self.frame, "RIGHT", -10, 0)
     line:SetScript("OnClick", function(clicked, button)
-        if clicked.entry and button == "RightButton" then
+        if not clicked.entry then
+            return
+        end
+        if button == "RightButton" then
             IgnoreFromLine(clicked.entry)
+        else
+            ns.Route:GoTo(clicked.entry)
         end
     end)
     line:SetScript("OnEnter", function(hovered)

@@ -17,6 +17,10 @@ local function Client(world)
     end
     return {
         LibQuestieDB = Fake.durotar(),
+        OpenWorldMap = function(map)
+            world.openedMap = map
+        end,
+        TomTom = world.tomtom,
         UnitLevel = function()
             return world.level
         end,
@@ -234,6 +238,95 @@ describe("ruta en el cliente simulado", function()
         -- Con la opción apagada, la sección desaparece.
         env:SettingsRegistry().settings[env:AddonName() .. "_showAvoid"]:SetValue(false)
         assert.is_falsy(Texts():find("Avoid (", 1, true))
+    end)
+
+    -- Botones de línea visibles cuyo texto contiene `fragment`.
+    local function LineWith(env, fragment)
+        for _, button in ipairs(env:Widgets("Button")) do
+            local text = button.text and button.text:GetText()
+            if button:IsShown() and text and text:find(fragment, 1, true) then
+                return button
+            end
+        end
+    end
+
+    it("clic en un paso: flecha en su punto y mapa abierto en la zona; en combate, sin mapa", function()
+        local world = NewWorld()
+        local env, ns = Boot(world)
+        local step = ns.Route.plan.steps[2]
+        local line = LineWith(env, step.name)
+        assert.is_not_nil(line)
+        world.waypoint = nil
+        line:GetScript("OnClick")(line, "LeftButton")
+        assert.are.equal(1411, world.openedMap)
+        assert.is_true(math.abs(world.waypoint.x * 100 - line.step.x) < 1e-6)
+        world.openedMap = nil
+        env:SetCombat(true)
+        line:GetScript("OnClick")(line, "LeftButton")
+        assert.is_nil(world.openedMap)
+        assert.is_not_nil(world.waypoint)
+    end)
+
+    it("clic en una misión de «Evitar» también pone la flecha allí", function()
+        local world = NewWorld()
+        local env = Boot(world)
+        world.pois = { { questID = 99999, x = 0.02, y = 0.02 } }
+        world.log[99999] = {
+            title = "Recado lejano",
+            complete = false,
+            xp = 10,
+            objectives = { { type = "monster", finished = false, numFulfilled = 0, numRequired = 3 } },
+        }
+        world.order[#world.order + 1] = 99999
+        env:Fire("QUEST_ACCEPTED", 99999)
+        env:Advance(1.1)
+        local line = LineWith(env, "Recado lejano")
+        assert.is_not_nil(line)
+        line:GetScript("OnClick")(line, "LeftButton")
+        assert.is_true(math.abs(world.waypoint.x - 0.02) < 1e-6)
+        assert.is_nil(env.RutaMisionesCharDB.ignored[99999])
+        line:GetScript("OnClick")(line, "RightButton")
+        assert.is_true(env.RutaMisionesCharDB.ignored[99999])
+    end)
+
+    it("con TomTom instalado pone también su flecha y quita la anterior al cambiar de paso", function()
+        local world = NewWorld()
+        local calls = { added = {}, removed = {} }
+        world.tomtom = {
+            AddWaypoint = function(_, map, x, y, opts)
+                local uid = { map, x, y, title = opts.title }
+                calls.added[#calls.added + 1] = uid
+                assert.is_true(opts.crazy)
+                return uid
+            end,
+            RemoveWaypoint = function(_, uid)
+                calls.removed[#calls.removed + 1] = uid
+            end,
+        }
+        local env = Boot(world)
+        assert.are.equal(1, #calls.added)
+        assert.are.equal(1411, calls.added[1][1])
+        assert.is_true(math.abs(calls.added[1][2] - 0.42) < 1e-6)
+        Accept(env, world, 100, "Matar jabalíes")
+        assert.is_true(#calls.added >= 2)
+        assert.are.equal(calls.added[1], calls.removed[1])
+    end)
+
+    it("con la opción de TomTom apagada no lo toca", function()
+        local world = NewWorld()
+        local added = 0
+        world.tomtom = {
+            AddWaypoint = function()
+                added = added + 1
+            end,
+        }
+        local env = WowEnv.new({ globals = Client(world) })
+        env.RutaMisionesDB = { schema = 1, useTomTom = false }
+        env:LoadToc(TOC)
+        env:Login()
+        env:Advance(1.1)
+        assert.are.equal(0, added)
+        assert.is_not_nil(world.waypoint)
     end)
 
     it("en una estancia sin mapa lo dice en vez de fallar", function()

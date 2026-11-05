@@ -271,6 +271,10 @@ function Planner.AvoidList(plan, limit)
                 reason = entry.reason,
                 xpPerHour = (entry.rate or 0) * 3600,
             }
+            local point = quest.pickup or (quest.objectives and quest.objectives[1]) or quest.turnin
+            if point then
+                list[#list].x, list[#list].y = point.x, point.y
+            end
         end
     end
     table.sort(list, function(a, b)

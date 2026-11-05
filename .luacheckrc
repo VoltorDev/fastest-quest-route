@@ -23,6 +23,7 @@ globals = {
 
 -- API de WoW que el addon lee. Añade aquí cada global nueva que uses.
 read_globals = {
+    "OpenWorldMap",
     "C_Map",
     "C_QuestLog",
     "C_SuperTrack",

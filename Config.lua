@@ -47,6 +47,8 @@ function module:OnInitialize()
 
     Checkbox("enabled", L.OPT_ENABLED, L.OPT_ENABLED_TT)
     Checkbox("autoWaypoint", L.OPT_WAYPOINT, L.OPT_WAYPOINT_TT)
+    Checkbox("openMapOnClick", L.OPT_OPENMAP, L.OPT_OPENMAP_TT)
+    Checkbox("useTomTom", L.OPT_TOMTOM, L.OPT_TOMTOM_TT)
     Checkbox("useQuestie", L.OPT_QUESTIE, L.OPT_QUESTIE_TT)
     Checkbox("showAvoid", L.OPT_AVOID, L.OPT_AVOID_TT)
     Slider("maxSteps", L.OPT_STEPS, L.OPT_STEPS_TT, 3, 25, 1, "%d")

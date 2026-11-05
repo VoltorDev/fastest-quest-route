@@ -200,13 +200,47 @@ function module:Update()
     ns:RefreshUI()
 end
 
-function module:SetWaypoint(step)
-    if not step or not self.uiMap or not C_Map.CanSetUserWaypointOnMap(self.uiMap) then
+-- Flecha de TomTom, si está instalado: misma llamada que usa Questie en Forever
+-- (TomTom:AddWaypoint(uiMapID, x 0-1, y 0-1, opciones) devuelve el identificador para quitarla).
+function module:SetTomTom(step)
+    local tomtom = rawget(_G, "TomTom")
+    if not ns.db.useTomTom or type(tomtom) ~= "table" or type(tomtom.AddWaypoint) ~= "function" then
         return
     end
-    local point = UiMapPoint.CreateFromCoordinates(self.uiMap, step.x / 100, step.y / 100)
-    C_Map.SetUserWaypoint(point)
-    C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    if self.tomtomWaypoint and type(tomtom.RemoveWaypoint) == "function" then
+        pcall(tomtom.RemoveWaypoint, tomtom, self.tomtomWaypoint)
+    end
+    local ok, uid = pcall(tomtom.AddWaypoint, tomtom, self.uiMap, step.x / 100, step.y / 100, {
+        title = step.name,
+        crazy = true,
+        from = ns.name,
+    })
+    self.tomtomWaypoint = ok and uid or nil
+end
+
+-- Marcador y navegación de Blizzard (y TomTom) en el punto del paso.
+function module:SetWaypoint(step)
+    if not step or not step.x or not self.uiMap then
+        return
+    end
+    if C_Map.CanSetUserWaypointOnMap(self.uiMap) then
+        local point = UiMapPoint.CreateFromCoordinates(self.uiMap, step.x / 100, step.y / 100)
+        C_Map.SetUserWaypoint(point)
+        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    end
+    self:SetTomTom(step)
+end
+
+-- Clic del jugador en un paso o en una misión a evitar: flecha y, si se quiere, el mapa abierto en
+-- esa zona con el marcador puesto. El mapa no se abre en combate.
+function module:GoTo(step)
+    if not step or not step.x then
+        return
+    end
+    self:SetWaypoint(step)
+    if ns.db.openMapOnClick and not InCombatLockdown() and self.uiMap then
+        OpenWorldMap(self.uiMap)
+    end
 end
 
 -- La flecha solo se mueve cuando cambia el primer paso, para no pisar la que ponga el jugador.

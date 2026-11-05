@@ -15,8 +15,9 @@ addon de guías. Pedido el 05-11-2026; el mismo día pidió que tuviera en cuent
 | Disponibilidad (nivel, raza con máscaras > 2^32, clase, previas, exclusivas, temporada) + `IsDoable` de Questie si está | Sí | Tests con base falsa; simulación con la real |
 | Planificador: inserción más barata con precedencias, cadenas, descarte por XP/h, tope de 90 min, mejora local (pasos y misiones enteras) y estabilidad | Sí | 12 tests; simulación real: Durotar 1→12 en ~2 h 48 min y Mulgore 1→10 en ~2 h 03 min (tiempos estimados, no medidos) |
 | Sección «Evitar» (05-11-2026, pedida por Nico): `Planner.AvoidList` + poda final (las del diario se insertaban contra una ruta vacía y nunca se descartaban) | Sí | 3 tests nuevos; simulación real sin cambio de tiempo (Durotar 1→12 igual); en los Baldíos a nivel 16 sale «Jorn Visioceleste» (~1000 XP/h frente a ~18 000 de la ruta). **Sin ver en el cliente** |
+| Clic que lleva allí (05-11-2026, pedido de Nico: «que me lleve hasta ahí automáticamente»). Mover al personaje no es posible ni admisible (funciones de movimiento protegidas; EULA 1.C.ii.2, bots). En su lugar: flecha de Blizzard + `OpenWorldMap` (fuera de combate) + TomTom con la misma llamada que usa Questie en Forever | Sí | 4 tests nuevos (mapa, combate, «Evitar», TomTom puesto/quitado y apagado). **Sin ver en el cliente**; TomTom no está instalado en este PC |
 | Diario, posición, flecha (`C_Map.SetUserWaypoint` + `C_SuperTrack`), ventana, `/ruta`, opciones | Sí | 7 tests del flujo en el cliente simulado. **Sin ver en el cliente** |
-| Comprobaciones fuera del juego | — | Las seis pasan (05-11-2026): luacheck, StyLua, LuaLS, `api_forever` (avisos de `UnitRace`/`UnitClass` revisados: del jugador y filtrados con `issecretvalue`), 117 tests, sin XML |
+| Comprobaciones fuera del juego | — | Las seis pasan (05-11-2026): luacheck, StyLua, LuaLS, `api_forever` (avisos de `UnitRace`/`UnitClass` revisados: del jugador y filtrados con `issecretvalue`), 121 tests, sin XML |
 
 ## Pendiente
 

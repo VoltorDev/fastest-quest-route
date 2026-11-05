@@ -16,6 +16,8 @@ ns.DEFAULTS = {
     maxAbove = 2,
     useQuestie = true,
     showAvoid = true,
+    openMapOnClick = true,
+    useTomTom = true,
     speed = 7, -- yardas/s a pie; se puede subir a mano con montura (/run RutaMisionesDB.speed = 11)
     frame = { point = "RIGHT", relativePoint = "RIGHT", x = -40, y = 120 },
 }
