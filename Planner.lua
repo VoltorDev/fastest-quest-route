@@ -20,13 +20,25 @@ Planner.DEFAULTS = {
     speed = 7, -- yardas por segundo a pie (velocidad de carrera base)
     pickupWork = 8, -- segundos por hablar con un PNJ
     turninWork = 10,
-    minRatio = 0.4, -- una misión nueva debe dar al menos este % del ritmo de XP de la ruta
+    -- Una misión nueva debe dar al menos este % del ritmo de XP de la ruta. Calibrado contra las guías
+    -- de RestedXP de Forever (Durotar 1-12 y Baldíos 12-22, 06-11-2026): con 0,4 descartaba misiones
+    -- que la guía sí hace una vez que la ruta ganó ritmo con los objetivos solapados.
+    minRatio = 0.25,
     keepRatio = 0.2, -- umbral (más bajo) para las del diario: ya están empezadas
     offMapFactor = 0.5, -- XP que se cuenta si la entrega está fuera de este mapa
     maxSeconds = 90 * 60, -- tope de duración de la ruta: lo que no quepa se deja para después
     passes = 25, -- pasadas máximas de mejora local
-    chainBonus = 0.5, -- parte del valor de las continuaciones que se suma a la misión que las abre
-    turninDelay = 0.5, -- peso del momento medio (ponderado por XP) de las entregas en la mejora local
+    -- Parte del valor de cada continuación que se suma a la misión que la abre, eslabón a eslabón:
+    -- una cadena vale Σ valor_k · chainBonus^k (las guías deciden por cadena entera, no por misión).
+    chainBonus = 0.5,
+    -- Peso del momento medio (ponderado por XP) de las entregas listas en la mejora local. En las guías
+    -- de RestedXP de Forever solo el 2,6 % de las entregas se retrasa tras pasar junto al PNJ.
+    turninDelay = 1.0,
+    -- Objetivos de misiones distintas a menos de overlapYards se hacen a la vez (las guías hacen así un
+    -- tercio de los objetivos): el que va detrás cuesta overlapFactor de su trabajo.
+    overlapYards = 150,
+    overlapFactor = 0.7,
+    hubYards = 40, -- dadores a menos de esta distancia forman un campamento (RetryHubs)
 }
 
 local KIND_ORDER = { pickup = 1, objective = 2, turnin = 3 }
@@ -38,12 +50,29 @@ local function Distance(a, b, w, h)
 end
 Planner.Distance = Distance
 
+-- Segundos de ir de `prev` a `node` y hacer `node`. Dos objetivos seguidos de misiones distintas
+-- en la misma zona de caza se solapan: el segundo cuesta una parte de su trabajo.
+local function StepCost(prev, node, p)
+    local distance = Distance(prev, node, p.w, p.h)
+    local work = node.work
+    if
+        node.kind == "objective"
+        and prev.kind == "objective"
+        and prev.q ~= node.q
+        and distance <= (p.overlapYards or 0)
+    then
+        work = work * (p.overlapFactor or 1)
+    end
+    return distance / p.speed + work
+end
+Planner.StepCost = StepCost
+
 -- Coste total (segundos) de una ruta: desplazamientos + trabajo en cada paso.
 local function RouteCost(route, start, p)
     local total, prev = 0, start
     for i = 1, #route do
         local node = route[i]
-        total = total + Distance(prev, node, p.w, p.h) / p.speed + node.work
+        total = total + StepCost(prev, node, p)
         prev = node
     end
     return total
@@ -54,9 +83,9 @@ Planner.RouteCost = RouteCost
 local function InsertDelta(route, i, node, start, p)
     local prev = route[i - 1] or start
     local nextNode = route[i]
-    local add = Distance(prev, node, p.w, p.h) / p.speed + node.work
+    local add = StepCost(prev, node, p)
     if nextNode then
-        add = add + Distance(node, nextNode, p.w, p.h) / p.speed - Distance(prev, nextNode, p.w, p.h) / p.speed
+        add = add + StepCost(node, nextNode, p) - StepCost(prev, nextNode, p)
     end
     return add
 end
@@ -145,7 +174,7 @@ local function RouteScore(route, start, p)
     local total, prev, weighted, value = 0, start, 0, 0
     for i = 1, #route do
         local node = route[i]
-        total = total + Distance(prev, node, p.w, p.h) / p.speed + node.work
+        total = total + StepCost(prev, node, p)
         if IsReadyTurnin(node) then
             local v = math.max(QuestValue(node.q, p), 1)
             weighted, value = weighted + v * total, value + v
@@ -167,7 +196,7 @@ local function BestScoreInsert(route, node, first, last, start, p)
     local finish, total, prev, weighted, value = {}, 0, start, 0, 0
     for i = 1, n do
         local other = route[i]
-        total = total + Distance(prev, other, p.w, p.h) / p.speed + other.work
+        total = total + StepCost(prev, other, p)
         finish[i] = total
         if IsReadyTurnin(other) then
             local v = math.max(QuestValue(other.q, p), 1)
@@ -184,7 +213,7 @@ local function BestScoreInsert(route, node, first, last, start, p)
     local bestI, bestScore = first, huge
     for i = first, last do
         local delta = InsertDelta(route, i, node, start, p)
-        local arrive = (finish[i - 1] or 0) + Distance(route[i - 1] or start, node, p.w, p.h) / p.speed + node.work
+        local arrive = (finish[i - 1] or 0) + StepCost(route[i - 1] or start, node, p)
         local score = total + delta + p.turninDelay * (weighted + delta * after[i] + v * arrive) / (value + v)
         if score < bestScore then
             bestI, bestScore = i, score
@@ -322,6 +351,65 @@ local function Prune(route, cost, totalValue, entryOf, skipped, start, p)
     return route, cost, totalValue
 end
 
+-- Campamentos: misión a misión, la primera de un campamento lejano carga con todo el viaje y se
+-- descarta, y la segunda también. Las guías deciden por campamento (recogen 3 o más de golpe en el
+-- 42 % de las aceptaciones), así que las descartadas por ritmo que comparten dador (a menos de
+-- hubYards) se prueban juntas: entran si entre todas compensan el viaje.
+local function RetryHubs(route, totalValue, skipped, entryOf, accepted, start, p)
+    local hubs = {}
+    for _, entry in ipairs(skipped) do
+        local quest = entry.quest
+        if entry.reason == "rate" and quest.pickup and not quest.inLog and not quest.afterSet then
+            local hub
+            for _, other in ipairs(hubs) do
+                if Distance(other[1].pickup, quest.pickup, p.w, p.h) <= p.hubYards then
+                    hub = other
+                    break
+                end
+            end
+            if not hub then
+                hub = {}
+                hubs[#hubs + 1] = hub
+            end
+            hub[#hub + 1] = quest
+        end
+    end
+    local taken = {}
+    for _, hub in ipairs(hubs) do
+        if #hub >= 2 then
+            local candidate, value, ok = route, 0, true
+            for _, quest in ipairs(hub) do
+                local entry = entryOf[quest]
+                local nextRoute = InsertQuest(candidate, entry.nodes, start, p)
+                if not nextRoute then
+                    ok = false
+                    break
+                end
+                candidate, value = nextRoute, value + entry.value + (entry.bonus or 0)
+            end
+            if ok then
+                local cost = RouteCost(route, start, p)
+                local added = RouteCost(candidate, start, p) - cost
+                local routeRate = cost > 0 and totalValue / cost or 0
+                if cost + added <= p.maxSeconds and value / math.max(added, 1) >= routeRate * p.minRatio then
+                    route = candidate
+                    for _, quest in ipairs(hub) do
+                        totalValue = totalValue + entryOf[quest].value
+                        accepted[quest] = true
+                        taken[quest] = true
+                    end
+                end
+            end
+        end
+    end
+    for i = #skipped, 1, -1 do
+        if taken[skipped[i].quest] then
+            table.remove(skipped, i)
+        end
+    end
+    return route, totalValue
+end
+
 -- Misiones a evitar, a partir de las descartadas por un plan: primero las del diario (conviene
 -- abandonarlas o dejarlas para luego), después las cercanas que no merecen el desvío; dentro de cada
 -- grupo, de peor a mejor XP por hora. Las que solo «no caben» o dependen de otra no se avisan: no
@@ -427,11 +515,20 @@ function Planner.Plan(quests, params)
     for _, entry in ipairs(entries) do
         entry.bonus = 0
     end
-    for _, entry in ipairs(entries) do
+    -- Toda la cadena, no solo el siguiente eslabón: de las más profundas a las primeras, cada una
+    -- pasa a su previa su valor más lo que ya acumuló de las suyas.
+    local byDepth = {}
+    for i, entry in ipairs(entries) do
+        byDepth[i] = entry
+    end
+    table.sort(byDepth, function(a, b)
+        return a.quest.depth > b.quest.depth
+    end)
+    for _, entry in ipairs(byDepth) do
         for pred in pairs(entry.quest.afterSet or {}) do
             local predEntry = entryOf[pred]
-            if predEntry then
-                predEntry.bonus = predEntry.bonus + entry.value * p.chainBonus
+            if predEntry and pred.depth < entry.quest.depth then
+                predEntry.bonus = predEntry.bonus + (entry.value + entry.bonus) * p.chainBonus
             end
         end
     end
@@ -506,6 +603,7 @@ function Planner.Plan(quests, params)
                 reason = "chain"
             end
         end
+
         local candidate, added
         if not reason then
             candidate, added = InsertQuest(route, entry.nodes, start, p)
@@ -535,6 +633,8 @@ function Planner.Plan(quests, params)
         end
     end
 
+    route, totalValue = RetryHubs(route, totalValue, skipped, entryOf, accepted, start, p)
+
     local cost
     route, cost = LocalSearch(route, start, p)
     route, cost, totalValue = Prune(route, cost, totalValue, entryOf, skipped, start, p)
@@ -542,7 +642,9 @@ function Planner.Plan(quests, params)
     -- Pasos con tiempo acumulado (llegada estimada a cada uno).
     local steps, elapsed, prev = {}, 0, start
     for i, node in ipairs(route) do
-        elapsed = elapsed + Distance(prev, node, p.w, p.h) / p.speed
+        local stepCost = StepCost(prev, node, p)
+        local travel = Distance(prev, node, p.w, p.h) / p.speed
+        elapsed = elapsed + travel
         steps[i] = {
             kind = node.kind,
             questID = node.q.id,
@@ -551,12 +653,12 @@ function Planner.Plan(quests, params)
             y = node.y,
             label = node.label,
             index = node.index,
-            work = node.work,
+            work = stepCost - travel,
             chained = node.q.afterSet ~= nil,
             key = Planner.Key(node.q.id, node.kind, node.index),
             arrive = elapsed,
         }
-        elapsed = elapsed + node.work
+        elapsed = elapsed + stepCost - travel
         prev = node
     end
 

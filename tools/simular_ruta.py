@@ -21,7 +21,10 @@ ADDON = os.path.dirname(AQUI)
 TAMANOS = {1411: (5287.5, 3525.0), 1412: (5137.5, 3425.0), 1420: (4518.75, 3012.5), 1413: (10133.3, 6756.2)}
 # XP para pasar de nivel (Vanilla).
 XP_NIVEL = [0, 400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600, 8800, 10100, 11400, 12900,
-            14400, 15700, 17200, 18800, 20400, 22100]
+            14400, 15700, 17200, 18800, 20400, 22100, 23900, 25800, 27800, 29900, 32100, 34400, 36800,
+            39300, 41900, 44600, 47400, 50300, 53300, 56400, 59600, 62900, 66300, 69800, 73400, 77100,
+            80900, 84800, 88800, 92900, 97100, 101400, 105800, 110300, 114900, 119600, 124400, 129300,
+            134300, 139400, 144600, 150000, 155500, 161100, 166800]
 
 SIM = r"""
 local ns, mapa, pos, player, w, h = ...
@@ -51,6 +54,9 @@ def main():
     ap.add_argument("--clase", type=int, default=9)
     ap.add_argument("--pasos", type=int, default=60)
     ap.add_argument("--hasta-nivel", type=int, default=99)
+    ap.add_argument("--param", action="append", default=[],
+                    help="cambia un parámetro del planificador (Planner.DEFAULTS), p. ej. --param minRatio=0.3")
+    ap.add_argument("--json", help="guarda los pasos jugados (questID, tipo, nivel, minuto) en este fichero")
     args = ap.parse_args()
 
     lua = questiedb_real.cargar()
@@ -61,6 +67,9 @@ def main():
         with open(os.path.join(ADDON, f), encoding="utf-8") as fh:
             loader(fh.read().encode(), ("@" + f).encode(), ns)
 
+    for par in args.param:
+        clave, valor = par.split("=", 1)
+        ns.Planner.DEFAULTS[clave.encode()] = float(valor)
     E = lua.globals().LibQuestieDB.Enum
     player = lua.table()
     player.level = args.nivel
@@ -78,6 +87,7 @@ def main():
     Q = lua.globals().LibQuestieDB.Quest
     log = lua.table()  # questID -> {title, complete, objectives}
     xp_total, xp_nivel, t = 0, 0, 0.0
+    jugados = []
     evitar_antes = None
     avoid_list = lua.eval(b"function(ns, plan) return ns.Planner.AvoidList(plan, 5) end")
     for paso in range(1, args.pasos + 1):
@@ -153,12 +163,19 @@ def main():
                 player.level += 1
                 print("   ** Sube a nivel %d (min %.0f)" % (player.level, t / 60))
             accion = "Entregar (+%d XP)" % xp
+        jugados.append({"paso": paso, "tipo": s.kind.decode(), "questID": int(qid), "nombre": nombre,
+                        "x": round(s.x, 1), "y": round(s.y, 1), "nivel": int(player.level), "min": round(t / 60, 1)})
         sys.stdout.reconfigure(encoding='utf-8')
         print("%3d. %-18s %-42s (%.1f, %.1f)  viaje %.0fs  [ruta: %d pasos, %.0f XP/h, %d candidatas]" % (
             paso, accion, nombre[:42] + (" [cadena]" if s.chained else ""), s.x, s.y, dt, len(steps), resultado.xpPerHour, n_quests))
         if player.level >= args.hasta_nivel:
             break
     print("Tiempo simulado: %.0f min, XP: %d, nivel %d" % (t / 60, xp_total, player.level))
+    if args.json:
+        import json
+        with open(args.json, "w", encoding="utf-8") as fh:
+            json.dump({"minutos": round(t / 60, 1), "nivel": int(player.level), "pasos": jugados}, fh,
+                      ensure_ascii=False, indent=1)
 
 
 if __name__ == "__main__":

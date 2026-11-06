@@ -225,3 +225,34 @@ describe("Planner.Plan", function()
         assert.are.equal(0, plan.xpPerHour)
     end)
 end)
+
+-- Reglas sacadas de las guías de RestedXP de Forever (06-11-2026).
+describe("Planner: reglas de las guías", function()
+    it("objetivos de misiones distintas en la misma zona de caza se solapan", function()
+        local p = { w = 1000, h = 1000, speed = 7, overlapYards = 150, overlapFactor = 0.7 }
+        local qa, qb = {}, {}
+        local a = { q = qa, kind = "objective", x = 50, y = 50, work = 60 }
+        local near = { q = qb, kind = "objective", x = 55, y = 50, work = 60 } -- a 50 yd
+        local far = { q = qb, kind = "objective", x = 80, y = 50, work = 60 } -- a 300 yd
+        local same = { q = qa, kind = "objective", x = 55, y = 50, work = 60 }
+        assert.is_true(math.abs(Planner.StepCost(a, near, p) - (50 / 7 + 42)) < 1e-6)
+        assert.is_true(math.abs(Planner.StepCost(a, far, p) - (300 / 7 + 60)) < 1e-6)
+        assert.is_true(math.abs(Planner.StepCost(a, same, p) - (50 / 7 + 60)) < 1e-6)
+    end)
+
+    it("una misión floja que abre una cadena larga y buena entra por toda la cadena", function()
+        -- 1 da poca XP y está apartada; abre 2, que abre 3, que da mucha. Con el valor de un solo
+        -- eslabón, 1 no compensaba y toda la cadena se perdía.
+        local quests = {
+            Quest(10, 900, { 50, 50 }, { 52, 50 }, { 50, 50 }),
+            Quest(1, 60, { 20, 20 }, { 18, 20 }, { 20, 20 }),
+            Quest(2, 60, { 20, 20 }, { 22, 20 }, { 20, 20 }, { after = { 1 } }),
+            Quest(3, 4000, { 20, 20 }, { 20, 22 }, { 20, 20 }, { after = { 2 } }),
+        }
+        local plan = Planner.Plan(quests, PARAMS)
+        local pos = Positions(plan)
+        for _, id in ipairs({ 1, 2, 3 }) do
+            assert(pos[id .. ":turnin"], "falta la entrega " .. id)
+        end
+    end)
+end)
