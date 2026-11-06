@@ -10,6 +10,7 @@ ns.DEFAULTS = {
     schema = 1,
     enabled = true,
     shown = true,
+    style = "tracker", -- UI.lua: "tracker" (seguidor sin marco) o "card" (tarjeta del siguiente paso)
     scale = 1,
     autoWaypoint = true,
     maxSteps = 10,

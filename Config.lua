@@ -45,7 +45,33 @@ function module:OnInitialize()
         Settings.CreateSlider(category, setting, options, tooltip)
     end
 
+    -- Desplegable de textos: values = { {valor, etiqueta}, ... }.
+    local function Dropdown(key, label, tooltip, values)
+        local setting = Settings.RegisterAddOnSetting(
+            category,
+            addonName .. "_" .. key,
+            key,
+            db,
+            Settings.VarType.String,
+            label,
+            ns.DEFAULTS[key]
+        )
+        setting:SetValueChangedCallback(OnSettingChanged)
+        local function GetOptions()
+            local container = Settings.CreateControlTextContainer()
+            for _, value in ipairs(values) do
+                container:Add(value[1], value[2])
+            end
+            return container:GetData()
+        end
+        Settings.CreateDropdown(category, setting, GetOptions, tooltip)
+    end
+
     Checkbox("enabled", L.OPT_ENABLED, L.OPT_ENABLED_TT)
+    Dropdown("style", L.OPT_STYLE, L.OPT_STYLE_TT, {
+        { "tracker", L.STYLE_TRACKER },
+        { "card", L.STYLE_CARD },
+    })
     Checkbox("autoWaypoint", L.OPT_WAYPOINT, L.OPT_WAYPOINT_TT)
     Checkbox("openMapOnClick", L.OPT_OPENMAP, L.OPT_OPENMAP_TT)
     Checkbox("useTomTom", L.OPT_TOMTOM, L.OPT_TOMTOM_TT)

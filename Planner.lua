@@ -26,6 +26,7 @@ Planner.DEFAULTS = {
     maxSeconds = 90 * 60, -- tope de duración de la ruta: lo que no quepa se deja para después
     passes = 25, -- pasadas máximas de mejora local
     chainBonus = 0.5, -- parte del valor de las continuaciones que se suma a la misión que las abre
+    turninDelay = 0.5, -- peso del momento medio (ponderado por XP) de las entregas en la mejora local
 }
 
 local KIND_ORDER = { pickup = 1, objective = 2, turnin = 3 }
@@ -131,6 +132,67 @@ local function QuestValue(quest, p)
     return xp + (quest.killXP or 0)
 end
 
+-- Entrega de una misión ya completa: su único nodo es la entrega (ver BuildNodes).
+local function IsReadyTurnin(node)
+    return node.kind == "turnin" and not node.q.pickup and #(node.q.objectives or {}) == 0
+end
+
+-- Puntuación de la mejora local: tiempo total más el momento medio, ponderado por XP, en que se
+-- entregan las misiones ya completas. Con solo el tiempo total, aplazar una entrega cercana hasta
+-- la vuelta de un objetivo lejano sale gratis o incluso ahorra unos segundos, y la ruta pasaba de
+-- largo por el PNJ.
+local function RouteScore(route, start, p)
+    local total, prev, weighted, value = 0, start, 0, 0
+    for i = 1, #route do
+        local node = route[i]
+        total = total + Distance(prev, node, p.w, p.h) / p.speed + node.work
+        if IsReadyTurnin(node) then
+            local v = math.max(QuestValue(node.q, p), 1)
+            weighted, value = weighted + v * total, value + v
+        end
+        prev = node
+    end
+    if value > 0 then
+        total = total + p.turninDelay * weighted / value
+    end
+    return total
+end
+
+-- Mejor hueco para una entrega lista según la puntuación (no solo el tiempo): prueba cada posición válida.
+local function BestScoreInsert(route, node, first, last, start, p)
+    -- Sin recorrer la ruta por cada hueco: meter el nodo en i retrasa en `delta` todo lo que va
+    -- detrás, así que la puntuación nueva sale de los tiempos de llegada y del XP de las entregas
+    -- listas que quedan a partir de i (calculados una vez).
+    local n = #route
+    local finish, total, prev, weighted, value = {}, 0, start, 0, 0
+    for i = 1, n do
+        local other = route[i]
+        total = total + Distance(prev, other, p.w, p.h) / p.speed + other.work
+        finish[i] = total
+        if IsReadyTurnin(other) then
+            local v = math.max(QuestValue(other.q, p), 1)
+            weighted, value = weighted + v * total, value + v
+        end
+        prev = other
+    end
+    local after = { [n + 1] = 0 }
+    for i = n, 1, -1 do
+        local other = route[i]
+        after[i] = after[i + 1] + (IsReadyTurnin(other) and math.max(QuestValue(other.q, p), 1) or 0)
+    end
+    local v = math.max(QuestValue(node.q, p), 1)
+    local bestI, bestScore = first, huge
+    for i = first, last do
+        local delta = InsertDelta(route, i, node, start, p)
+        local arrive = (finish[i - 1] or 0) + Distance(route[i - 1] or start, node, p.w, p.h) / p.speed + node.work
+        local score = total + delta + p.turninDelay * (weighted + delta * after[i] + v * arrive) / (value + v)
+        if score < bestScore then
+            bestI, bestScore = i, score
+        end
+    end
+    return bestI
+end
+
 -- Inserta los nodos de una misión en orden; devuelve la ruta nueva y el tiempo añadido.
 local function InsertQuest(route, nodes, start, p)
     local candidate = {}
@@ -173,7 +235,7 @@ end
 -- volver; (2) recolocar pasos sueltos en su mejor hueco válido.
 local function LocalSearch(route, start, p)
     local improved, pass = true, 0
-    local cost = RouteCost(route, start, p)
+    local score = RouteScore(route, start, p)
     while improved and pass < p.passes do
         improved, pass = false, pass + 1
         local seen = {}
@@ -183,9 +245,9 @@ local function LocalSearch(route, start, p)
                 seen[quest] = true
                 local candidate = MoveQuest(route, quest, start, p)
                 if candidate then
-                    local newCost = RouteCost(candidate, start, p)
-                    if newCost < cost - 0.5 then
-                        route, cost, improved = candidate, newCost, true
+                    local newScore = RouteScore(candidate, start, p)
+                    if newScore < score - 0.5 then
+                        route, score, improved = candidate, newScore, true
                     end
                 end
             end
@@ -193,18 +255,23 @@ local function LocalSearch(route, start, p)
         for i = 1, #route do
             local node = table.remove(route, i)
             local first, last = ValidRange(route, node)
-            local bestI = BestInsert(route, node, first, last, start, p)
+            local bestI
+            if IsReadyTurnin(node) then
+                bestI = BestScoreInsert(route, node, first, last, start, p)
+            else
+                bestI = BestInsert(route, node, first, last, start, p)
+            end
             table.insert(route, bestI, node)
-            local newCost = RouteCost(route, start, p)
-            if newCost < cost - 0.5 then
-                cost, improved = newCost, true
+            local newScore = RouteScore(route, start, p)
+            if newScore < score - 0.5 then
+                score, improved = newScore, true
             else
                 table.remove(route, bestI)
                 table.insert(route, i, node)
             end
         end
     end
-    return route, cost
+    return route, RouteCost(route, start, p)
 end
 
 -- Poda final: con la ruta ya completa, quita una a una las misiones que aportan menos XP por el

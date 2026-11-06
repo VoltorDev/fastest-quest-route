@@ -167,7 +167,8 @@ describe("ruta en el cliente simulado", function()
             texts[#texts + 1] = fs:GetText() or ""
         end
         local all = table.concat(texts, "\n")
-        assert.is_truthy(all:find("Pick up: Matar jabalíes", 1, true))
+        assert.is_truthy(all:find("Matar jabalíes", 1, true)) -- título de la misión, en el seguidor
+        assert.is_truthy(all:find("!|r Pick up", 1, true)) -- y debajo, qué hacer en ella
         assert.is_truthy(all:find("XP/h", 1, true))
     end)
 
@@ -284,7 +285,7 @@ describe("ruta en el cliente simulado", function()
         world.waypoint = nil
         line:GetScript("OnClick")(line, "LeftButton")
         assert.are.equal(1411, world.openedMap)
-        assert.is_true(math.abs(world.waypoint.x * 100 - line.step.x) < 1e-6)
+        assert.is_true(math.abs(world.waypoint.x * 100 - line.target.x) < 1e-6)
         world.openedMap = nil
         env:SetCombat(true)
         line:GetScript("OnClick")(line, "LeftButton")

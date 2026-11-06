@@ -14,6 +14,7 @@ end
 
 local EXPECTED = {
     enabled = "boolean",
+    style = "string",
     autoWaypoint = "boolean",
     useQuestie = "boolean",
     showAvoid = "boolean",
@@ -51,17 +52,32 @@ describe("opciones en Settings", function()
         assert.are.equal(1.25, registry.settings[env:AddonName() .. "_scale"]:GetValue()) -- no pisa lo guardado
     end)
 
-    it("crea nueve casillas y tres deslizadores con sus formatos", function()
+    it("crea nueve casillas, el desplegable de estilo y tres deslizadores con sus formatos", function()
         local env = WowEnv.boot(TOC)
-        local kinds, sliders = {}, {}
+        local kinds, sliders, dropdown =
+            {}, {}, {
+                options = function()
+                    return {}
+                end,
+            }
         for _, control in ipairs(env:SettingsRegistry().controls) do
             kinds[#kinds + 1] = control.kind
             if control.kind == "Slider" then
                 sliders[#sliders + 1] = control.options
+            elseif control.kind == "Dropdown" then
+                dropdown = control
             end
         end
+        -- El desplegable ofrece los dos estilos de la ventana, seguidor por defecto.
+        local values = {}
+        for _, option in ipairs(dropdown.options()) do
+            values[#values + 1] = option.value
+        end
+        assert.are.same({ "tracker", "card" }, values)
+        assert.are.equal("tracker", env.RutaMisionesDB.style)
         assert.are.same({
             "Checkbox",
+            "Dropdown",
             "Checkbox",
             "Checkbox",
             "Checkbox",
