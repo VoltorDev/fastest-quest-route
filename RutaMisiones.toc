@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## AllowLoadGameType: camelot, forever
 ## ExcludeLoadGameType: standard, classic
-## Title: RutaMisiones
+## Title: Fastest Quest Route
 ## Notes: Suggests the fastest order to do your quests (pick up, objectives, turn in), using Questie's database.
 ## Notes-esES: Te dice en qué orden hacer las misiones para subir más rápido (recoger, objetivos, entregar), con la base de datos de Questie.
 ## Notes-esMX: Te dice en qué orden hacer las misiones para subir más rápido (recoger, objetivos, entregar), con la base de datos de Questie.

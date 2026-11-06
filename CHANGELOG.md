@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (06-11-2026)
+
+- Planificador más fino, calibrado con guías de subida de Forever (sus datos no van en el addon): cada misión
+  vale también por lo que abre su cadena, las entregas se hacen al pasar, dos objetivos de misiones distintas a
+  150 yd o menos cuentan como trabajo compartido y las misiones del mismo dador descartadas por ritmo se prueban
+  juntas como campamento.
+
+## 0.1.1 (05-11-2026)
+
+- The addon list in game now shows its English name, **Fastest Quest Route** (the folder is still `RutaMisiones`, so your settings are kept). No other changes.
+
+## 0.1.0 (05-11-2026)
 
 - Aceptar y entregar misiones solo al hablar con el PNJ (opciones separadas; Mayús para hacerlo a mano). Acepta
   lo que conviene (no grises ni repetibles, salvo que la ruta las pida; nunca las ignoradas ni las de «Evitar») y

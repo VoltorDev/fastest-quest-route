@@ -50,4 +50,6 @@ addon de guías. Pedido el 05-11-2026; el mismo día pidió que tuviera en cuent
    piedra de hogar, continente) y no proponer capitales. La guía de ExpCarry
    (consultada el 05-11-2026) da los tramos por zona de la Horda; fiabilidad baja (web de boosting), útil solo como
    pista contrastada con QuestieDB.
-3. Publicar en CurseForge si funciona en el cliente (depende de Questie: decirlo en la descripción).
+3. Publicado en CurseForge: la 0.1.0 se subió el 05-11-2026 y pasó a Release ese mismo día por orden
+   de Nico, sin probar en el cliente (proyecto 1785197, «Fastest Quest Route», Questie como dependencia; ver [docs/CURSEFORGE.md](docs/CURSEFORGE.md)).
+   Faltan capturas.
