@@ -1,6 +1,6 @@
 # Changelog
 
-## Sin publicar
+## 0.3.0 (06-11-2026)
 
 - Datos de guías de subida como respaldo (`GuideData.lua`, 477 misiones): donde la base de Questie no ubica una
   misión, la ruta usa su recogida, sus objetivos y su entrega. Si Questie la ubica, manda Questie. Opción nueva
