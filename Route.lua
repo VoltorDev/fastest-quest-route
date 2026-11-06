@@ -129,10 +129,11 @@ end
 function module:ReadPlayer(log)
     local lib = self.data.lib
     -- Del propio jugador no son secretos, pero se comprueba antes de usarlos como clave.
-    local _, _, raceValue = UnitRace("player")
+    local _, raceFile, raceValue = UnitRace("player")
     local _, _, classValue = UnitClass("player")
     local secret = issecretvalue and (issecretvalue(raceValue) or issecretvalue(classValue))
     local raceID = not secret and raceValue or nil
+    local raceToken = not (issecretvalue and issecretvalue(raceFile)) and raceFile or nil
     local classID = not secret and classValue or nil
     local inLog = {}
     for id in pairs(log) do
@@ -143,6 +144,7 @@ function module:ReadPlayer(log)
         raceMask = raceID and lib.Enum.raceMaskById[raceID] or nil,
         classMask = classID and 2 ^ (classID - 1) or nil,
         classID = classID,
+        raceToken = raceToken,
         faction = UnitFactionGroup("player"),
         completed = self.completed,
         inLog = inLog,
@@ -192,6 +194,7 @@ function module:Update()
         isDoable = ns.db.useQuestie and GetQuestieDoable() or nil,
         maxAbove = ns.db.maxAbove,
         learned = ns.db.useLearned and ns.db.learned or nil,
+        guide = ns.db.useGuide and ns.GuideData or nil,
         titleOf = C_QuestLog.GetTitleForQuestID,
     })
     local previous = self.uiMap == uiMap and self.previousKeys or nil
@@ -239,7 +242,16 @@ function module:UpdateZones(player, uiMap)
         isDoable = ns.db.useQuestie and GetQuestieDoable() or nil,
         continentOf = module.ContinentOf,
         continent = module.ContinentOf(uiMap),
+        guideZones = ns.db.useGuide and module.GuideFor(ns.GuideZones, player.faction) or nil,
     })
+end
+
+-- Parte de una tabla de guías por facción (GuideZones) que toca a la facción del jugador.
+function module.GuideFor(tables, faction)
+    if type(tables) ~= "table" then
+        return nil
+    end
+    return tables[faction == "Alliance" and "A" or faction == "Horde" and "H" or ""]
 end
 
 -- Continente (UiMapID) de un mapa, subiendo por los padres de C_Map.GetMapInfo. Se guarda en caché.

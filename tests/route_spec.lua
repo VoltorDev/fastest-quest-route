@@ -147,6 +147,17 @@ describe("ruta en el cliente simulado: continente y nombres del cliente", functi
         assert.is_nil(ns.Route.ContinentOf(4242)) -- mapa desconocido
         assert.are.equal("Jabalíes (cliente)", ns.Route:CurrentStep().name)
     end)
+
+    it("toma de las guías las zonas de la facción del jugador", function()
+        local world = NewWorld()
+        local _, ns = Boot(world)
+        local tables = { A = { { 1429, 1, 13 } }, H = { { 1411, 1, 10 } } }
+        assert.are.same({ { 1429, 1, 13 } }, ns.Route.GuideFor(tables, "Alliance"))
+        assert.are.same({ { 1411, 1, 10 } }, ns.Route.GuideFor(tables, "Horde"))
+        assert.is_nil(ns.Route.GuideFor(tables, "Neutral"))
+        assert.is_nil(ns.Route.GuideFor(nil, "Horde"))
+        assert.are.equal(1436, ns.GuideZones.A[1][1]) -- el fichero real carga con el addon
+    end)
 end)
 
 describe("ruta en el cliente simulado", function()

@@ -23,6 +23,7 @@ local EXPECTED = {
     autoAccept = "boolean",
     autoTurnIn = "boolean",
     useLearned = "boolean",
+    useGuide = "boolean",
     maxSteps = "number",
     maxAbove = "number",
     scale = "number",
@@ -52,7 +53,7 @@ describe("opciones en Settings", function()
         assert.are.equal(1.25, registry.settings[env:AddonName() .. "_scale"]:GetValue()) -- no pisa lo guardado
     end)
 
-    it("crea nueve casillas, el desplegable de estilo y tres deslizadores con sus formatos", function()
+    it("crea diez casillas, el desplegable de estilo y tres deslizadores con sus formatos", function()
         local env = WowEnv.boot(TOC)
         local kinds, sliders, dropdown =
             {}, {}, {
@@ -78,6 +79,7 @@ describe("opciones en Settings", function()
         assert.are.same({
             "Checkbox",
             "Dropdown",
+            "Checkbox",
             "Checkbox",
             "Checkbox",
             "Checkbox",

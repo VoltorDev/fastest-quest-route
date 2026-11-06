@@ -418,5 +418,19 @@ describe("Data: siguiente zona", function()
         assert.is_false(zones[1].far)
         assert.are.equal(1420, zones[2].map)
         assert.is_true(zones[2].far)
+
+        -- Si las guías de subida hacen la zona del otro continente a este nivel, va primero.
+        local guided = data:RecommendZones(Player({ level = 8 }), {
+            exclude = 1413,
+            minCount = 1,
+            continentOf = function(map)
+                return continent[map]
+            end,
+            continent = 12,
+            guideZones = { { 1420, 7, 9 }, { 1411, 20, 25 } },
+        })
+        assert.are.equal(1420, guided[1].map)
+        assert.is_true(guided[1].onGuide)
+        assert.is_false(guided[2].onGuide) -- Durotar está en la guía, pero a otro nivel
     end)
 end)

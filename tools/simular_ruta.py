@@ -5,7 +5,10 @@ y «juega» la ruta: recoge, completa objetivos y entrega siguiendo el primer pa
 replanificando tras cada paso como hace el addon. Sirve para juzgar si el orden tiene sentido.
 
 Uso: python -I -B tools/simular_ruta.py [--mapa 1411] [--x 43.3 --y 68.5] [--nivel 1]
-         [--raza 2] [--clase 9] [--pasos 40] [--hasta-nivel 10]
+         [--raza 2] [--clase 9] [--pasos 40] [--hasta-nivel 10] [--guias]
+
+--guias carga además GuideData.lua (respaldo para las misiones que QuestieDB no ubica). Con él
+conviene pasar --faccion y --raza-token (p. ej. Alliance y Human), que filtran sus entradas.
 """
 import argparse
 import os
@@ -18,7 +21,7 @@ import questiedb_real  # noqa: E402
 ADDON = os.path.dirname(AQUI)
 
 # Tamaños de mapa en yardas (C_Map.GetMapWorldSize en el juego). Aproximados para simular.
-TAMANOS = {1411: (5287.5, 3525.0), 1412: (5137.5, 3425.0), 1420: (4518.75, 3012.5), 1413: (10133.3, 6756.2)}
+TAMANOS = {1429: (3470.8, 2314.6), 1411: (5287.5, 3525.0), 1412: (5137.5, 3425.0), 1420: (4518.75, 3012.5), 1413: (10133.3, 6756.2)}
 # XP para pasar de nivel (Vanilla).
 XP_NIVEL = [0, 400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600, 8800, 10100, 11400, 12900,
             14400, 15700, 17200, 18800, 20400, 22100, 23900, 25800, 27800, 29900, 32100, 34400, 36800,
@@ -27,14 +30,14 @@ XP_NIVEL = [0, 400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600, 8800, 1
             134300, 139400, 144600, 150000, 155500, 161100, 166800]
 
 SIM = r"""
-local ns, mapa, pos, player, w, h = ...
+local ns, mapa, pos, player, w, h, guide = ...
 local data = ns.Data.New(LibQuestieDB)
 local candidates = data:IndexStep(mapa)
 local previous
 local function plan(log, here)
   pos = here or pos
   local quests, offMap = ns.Builder.Build(data, {uiMap = mapa, position = pos, player = player, log = log,
-      candidates = candidates})
+      candidates = candidates, guide = guide})
   local result = ns.Planner.Plan(quests, {start = pos, w = w, h = h, previous = previous})
   previous = {}
   for i = 2, #result.steps do previous[#previous + 1] = result.steps[i].key end
@@ -54,6 +57,9 @@ def main():
     ap.add_argument("--clase", type=int, default=9)
     ap.add_argument("--pasos", type=int, default=60)
     ap.add_argument("--hasta-nivel", type=int, default=99)
+    ap.add_argument("--guias", dest="guide", action="store_true", help="usar también GuideData.lua")
+    ap.add_argument("--faccion", default=None, help="Alliance u Horde (filtra las entradas de guía)")
+    ap.add_argument("--raza-token", default=None, help="token de UnitRace, p. ej. Human")
     ap.add_argument("--param", action="append", default=[],
                     help="cambia un parámetro del planificador (Planner.DEFAULTS), p. ej. --param minRatio=0.3")
     ap.add_argument("--json", help="guarda los pasos jugados (questID, tipo, nivel, minuto) en este fichero")
@@ -63,7 +69,8 @@ def main():
     ns = lua.table()
     loader = lua.eval(b"function(code, name, ns) local f, err = loadstring(code, name); "
                       b"if not f then error(err) end; return f('RutaMisiones', ns) end")
-    for f in ("Data.lua", "Builder.lua", "Planner.lua"):
+    archivos = ["Data.lua", "Builder.lua", "Planner.lua"] + (["GuideData.lua"] if args.guide else [])
+    for f in archivos:
         with open(os.path.join(ADDON, f), encoding="utf-8") as fh:
             loader(fh.read().encode(), ("@" + f).encode(), ns)
 
@@ -75,13 +82,19 @@ def main():
     player.level = args.nivel
     player.raceMask = E.raceMaskById[args.raza]
     player.classMask = 2 ** (args.clase - 1)
+    player.classID = args.clase
+    if args.faccion:
+        player.faction = args.faccion
+    if args.raza_token:
+        player.raceToken = args.raza_token
     player.completed = lua.table()
     player.inLog = lua.table()
     player.ignored = lua.table()
     pos = lua.table()
     pos.x, pos.y = args.x, args.y
     w, h = TAMANOS.get(args.mapa, (5000.0, 3400.0))
-    data, candidates, plan = lua.execute(SIM.encode(), ns, args.mapa, pos, player, w, h)
+    data, candidates, plan = lua.execute(SIM.encode(), ns, args.mapa, pos, player, w, h,
+                                          ns.GuideData if args.guide else None)
     print("Misiones con dador en el mapa %d: %d" % (args.mapa, len(candidates)))
 
     Q = lua.globals().LibQuestieDB.Quest
@@ -124,13 +137,21 @@ def main():
                 o.numRequired = g.count
                 o.numFulfilled = 0
                 entrada.objectives[len(entrada.objectives) + 1] = o
-            if len(grupos) == 0:
+            zentrada = ns.GuideData[qid] if args.guide else None
+            if len(grupos) == 0 and zentrada is not None and zentrada.o is not None:
+                o = lua.table()
+                o.type = "event"
+                o.finished = False
+                o.numRequired = 1
+                o.numFulfilled = 0
+                entrada.objectives[1] = o
+            elif len(grupos) == 0:
                 entrada.complete = True
             accion = "Recoger"
         elif s.kind == b"objective":
             entrada = log[qid]
             for o in entrada.objectives.values():
-                if not o.finished and (o.type == s.label or s.label == b"poi"):
+                if not o.finished and (o.type == s.label or s.label in (b"poi", b"guide")):
                     o.finished = True
                     o.numFulfilled = o.numRequired
                     break

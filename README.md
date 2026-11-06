@@ -26,8 +26,16 @@ qué recoger, qué objetivo hacer y dónde entregar, con la flecha del mapa en e
 - Se recalcula sola al aceptar, avanzar o entregar misiones, al subir de nivel y al cambiar de zona; nunca en
   combate.
 
+- **Completa con datos de guías de subida** lo que la base de Questie no ubica: dónde se coge, dónde se hacen los
+  objetivos y dónde se entrega cada misión (opción «Usar datos de guías», activada por defecto). Si Questie sabe
+  dónde está algo, manda Questie.
+- **La siguiente zona sigue el orden de zonas de las guías de subida** para tu facción y nivel. Si no hay
+  ninguna de la guía a tu nivel, elige por XP disponible como antes.
+
 **Requisito:** Questie (trae QuestieDB). Sin él, el addon avisa y no dibuja nada. No copia datos de Questie: los
 consulta en el juego con la API pública de QuestieDB.
+
+`GuideData.lua` se regenera con `tools/extraer_guias.py`.
 
 ## Uso
 
@@ -53,8 +61,10 @@ misiones de una cadena), mejora local moviendo pasos y misiones enteras, y estab
 - Solo planifica el mapa en el que estás; las misiones del diario de otras zonas salen como «fuera de este mapa».
   La siguiente zona se elige por XP disponible, sin contar el viaje (no conoce vuelos ni caminos).
 - Las misiones nuevas de Forever que QuestieDB aún no tiene se ven si están en tu diario (con el punto de interés
-  de Blizzard). Se proponen para recoger solo después de que algún personaje tuyo las haya hecho, y su punto de
-  objetivo es donde ese personaje las terminó (aproximado).
+  de Blizzard o, si no lo hay, los objetivos de la guía). Se proponen para recoger si salen en los datos de guías o
+  después de que algún personaje tuyo las haya hecho.
+- Con los datos de guías, el nivel de una misión que Questie no conoce es el tramo de la guía donde aparece, su
+  XP es una estimación (la mediana de su nivel) y sus previas se deducen del orden de la guía.
 - Con montura usa la velocidad real; a pie, la de las opciones (7 yardas/s).
 
 ## Desarrollo
@@ -70,4 +80,5 @@ Simulación con la QuestieDB real instalada (orco de nivel 1 en el Valle de los 
 ```powershell
 python -I -B tools\simular_ruta.py --pasos 200 --hasta-nivel 10
 python -I -B tools\simular_ruta.py --mapa 1412 --x 44.2 --y 76 --raza 6 --clase 1
+python -I -B tools\simular_ruta.py --mapa 1437 --x 10.6 --y 59.7 --nivel 27 --raza 1 --faccion Alliance --raza-token Human --guias
 ```

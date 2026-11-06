@@ -31,6 +31,7 @@ Config.lua
 Slash.lua
 Planner.lua
 Data.lua
+GuideData.lua
 Builder.lua
 Route.lua
 Learned.lua

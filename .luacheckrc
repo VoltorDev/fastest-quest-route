@@ -99,3 +99,6 @@ files["tests/**/*.lua"] = {
     std = "lua51+busted",
     globals = { "string" }, -- secret_mock parchea string.format
 }
+
+-- Datos generados por tools/extraer_guias.py: líneas largas a propósito.
+files["GuideData.lua"] = { max_line_length = false }

@@ -23,6 +23,7 @@ ns.DEFAULTS = {
     autoAccept = true, -- aceptar solas las misiones que convienen (AutoQuest.lua)
     autoTurnIn = true, -- entregar solas las completas, salvo si hay que elegir recompensa
     useLearned = true, -- proponer misiones nuevas aprendidas por otros personajes (Learned.lua)
+    useGuide = true, -- completar con los datos de guías lo que QuestieDB no ubica (GuideData.lua)
     learned = {}, -- [questID] = lo que se sabe de cada misión que QuestieDB no tiene
     frame = { point = "RIGHT", relativePoint = "RIGHT", x = -40, y = 120 },
 }

@@ -531,15 +531,26 @@ function Data:RecommendZones(player, opts)
                 end
             end
             if count >= (opts.minCount or 3) then
+                local onGuide = false
+                for _, zone in ipairs(opts.guideZones or {}) do
+                    if zone[1] == map and player.level >= zone[2] - 1 and player.level <= zone[3] + 1 then
+                        onGuide = true
+                    end
+                end
                 local far = false
                 if opts.continentOf and opts.continent then
                     far = opts.continentOf(map) ~= opts.continent
                 end
-                list[#list + 1] = { map = map, count = count, xp = xp, far = far }
+                list[#list + 1] = { map = map, count = count, xp = xp, far = far, onGuide = onGuide }
             end
         end
     end
+    -- Primero las zonas que las guías hacen a tu nivel (ya cuentan el viaje y la densidad de
+    -- misiones, aunque estén en otro continente); después, las del mismo continente; luego, por XP.
     table.sort(list, function(a, b)
+        if a.onGuide ~= b.onGuide then
+            return a.onGuide
+        end
         if a.far ~= b.far then
             return not a.far
         end

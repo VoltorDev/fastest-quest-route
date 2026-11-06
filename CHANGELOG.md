@@ -1,5 +1,14 @@
 # Changelog
 
+## Sin publicar
+
+- Datos de guías de subida como respaldo (`GuideData.lua`, 477 misiones): donde la base de Questie no ubica una
+  misión, la ruta usa su recogida, sus objetivos y su entrega. Si Questie la ubica, manda Questie. Opción nueva
+  «Usar datos de guías», activada por defecto.
+- Siguiente zona según la secuencia de zonas por nivel de las guías de subida (las zonas que hacen a tu nivel van
+  primero, aunque estén en otro continente). Antes, a nivel 20, un humano veía Los Baldíos como primera opción;
+  ahora, Costa Oscura, Loch Modan y Crestagrana.
+
 ## 0.2.0 (06-11-2026)
 
 - Planificador más fino, calibrado con guías de subida de Forever (sus datos no van en el addon): cada misión
