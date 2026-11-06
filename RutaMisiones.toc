@@ -32,6 +32,8 @@ Slash.lua
 Planner.lua
 Data.lua
 GuideData.lua
+FlightData.lua
+Travel.lua
 Builder.lua
 Route.lua
 Learned.lua

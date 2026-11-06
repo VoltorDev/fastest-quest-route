@@ -89,6 +89,23 @@ describe("/rutamisiones", function()
         assert.are.equal(env.RutaMisionesDB, ns.db)
     end)
 
+    it("'zonas' lista las zonas con el tiempo de viaje cuando se conoce", function()
+        ns.Route.ZoneName = function(map)
+            return "Zona " .. map
+        end
+        ns.Route.zones = {
+            { map = 1, count = 5, xp = 2000, travel = 250, flew = true },
+            { map = 2, count = 4, xp = 1500, travel = 20, flew = false },
+            { map = 3, count = 3, xp = 900 },
+        }
+        env:RunSlash("/ruta zonas")
+        local out = env:Printed()
+        contains(out, "Zona 1: 5 quests, ~2000 XP" .. ns.L.ZONES_FLIGHT:format(4))
+        contains(out, "Zona 2: 4 quests, ~1500 XP" .. ns.L.ZONES_WALK:format(1))
+        contains(out, "Zona 3: 3 quests, ~900 XP")
+        assert.is_nil(out:find("~900 XP,", 1, true)) -- sin tiempo de viaje conocido, sin coletilla
+    end)
+
     it("un subcomando desconocido muestra la ayuda", function()
         env:RunSlash("/rutamisiones foo")
         contains(env:Printed(), ns.L.SLASH_HELP)

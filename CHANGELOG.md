@@ -8,6 +8,10 @@
 - Siguiente zona según la secuencia de zonas por nivel de las guías de subida (las zonas que hacen a tu nivel van
   primero, aunque estén en otro continente). Antes, a nivel 20, un humano veía Los Baldíos como primera opción;
   ahora, Costa Oscura, Loch Modan y Crestagrana.
+- La siguiente zona cuenta el viaje: a pie, con los vuelos que conoces (tiempos medidos de Forever en
+  `FlightData.lua`) y en barco o zepelín entre continentes. A la XP de cada zona se le resta la que dejarías de
+  ganar viajando, y una zona de otro continente a la que sabes llegar ya no va siempre detrás. `/ruta zonas`
+  muestra los minutos de viaje.
 
 ## 0.2.0 (06-11-2026)
 

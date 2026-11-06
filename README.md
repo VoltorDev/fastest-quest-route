@@ -31,6 +31,8 @@ qué recoger, qué objetivo hacer y dónde entregar, con la flecha del mapa en e
   dónde está algo, manda Questie.
 - **La siguiente zona sigue el orden de zonas de las guías de subida** para tu facción y nivel. Si no hay
   ninguna de la guía a tu nivel, elige por XP disponible como antes.
+- **La siguiente zona cuenta el viaje:** andando, con los maestros de vuelo que ya conoces (tiempos de vuelo
+  medidos de Forever) y en barco o zepelín entre continentes. `/ruta zonas` dice cuántos minutos tardarías.
 
 **Requisito:** Questie (trae QuestieDB). Sin él, el addon avisa y no dibuja nada. No copia datos de Questie: los
 consulta en el juego con la API pública de QuestieDB.
@@ -56,10 +58,11 @@ consulta en el juego con la API pública de QuestieDB.
 Es una heurística, no un óptimo exacto: inserción más barata con orden recoger < objetivos < entregar (y entre
 misiones de una cadena), mejora local moviendo pasos y misiones enteras, y estabilidad respecto al plan anterior.
 
-- Distancias en línea recta dentro del mapa: no conoce montañas, caminos ni vuelos.
+- Distancias en línea recta dentro del mapa: no conoce montañas ni caminos.
 - El tiempo de cada objetivo es una estimación (unos 14 s por enemigo, 24 s por objeto de botín).
 - Solo planifica el mapa en el que estás; las misiones del diario de otras zonas salen como «fuera de este mapa».
-  La siguiente zona se elige por XP disponible, sin contar el viaje (no conoce vuelos ni caminos).
+  El viaje a la siguiente zona es aproximado: línea recta a pie, vuelos conocidos y un tiempo fijo estimado
+  (6 min con la espera) para barcos y zepelines.
 - Las misiones nuevas de Forever que QuestieDB aún no tiene se ven si están en tu diario (con el punto de interés
   de Blizzard o, si no lo hay, los objetivos de la guía). Se proponen para recoger si salen en los datos de guías o
   después de que algún personaje tuyo las haya hecho.

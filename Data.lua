@@ -504,11 +504,18 @@ Data.CAPITALS = {
     [1458] = true, -- Entrañas
 }
 
+-- Segundos que se tarda en una misión media de subida (recoger, hacer y entregar, sin el viaje hasta
+-- la zona). ESTIMACIÓN: solo sirve para traducir el tiempo de viaje a XP que dejas de ganar.
+Data.ZONE_QUEST_SECONDS = 300
+
 -- Zonas con más XP disponible para el jugador, sin contar `exclude` (el mapa actual) ni las capitales.
 -- Devuelve { { map, count, xp, far } } de más a menos XP. Con `opts.continentOf` (mapa → continente)
 -- y `opts.continent` (el del jugador), las del mismo continente van antes que cualquiera de otro
 -- (`far = true`): sin eso, la suma de XP mandaba a un orco de nivel 8 a Tirisfal, la zona de inicio de
 -- los no-muertos al otro lado del mar, antes que a Los Baldíos. Requiere IndexAllStep terminado.
+-- Con `opts.travel(mapa, x, y)` (segundos de viaje hasta ese punto, o nil), a la XP de cada zona se
+-- le resta lo que dejarías de ganar mientras viajas (`net`), y una zona de otro continente a la que
+-- sabes llegar deja de ir detrás de las demás.
 function Data:RecommendZones(player, opts)
     local byMap = self.allIndex and self.allIndex.done and self.allIndex.byMap
     if not byMap then
@@ -517,9 +524,12 @@ function Data:RecommendZones(player, opts)
     local minLevel = player.level - (opts.below or 2)
     local maxLevel = player.level + (opts.above or 2)
     local list = {}
+    -- XP que se deja de ganar por segundo de viaje: la de una misión media de tu nivel en el tiempo
+    -- que se tarda en hacerla.
+    local xpPerSecond = (self:MedianXP(player.level) or 0) / Data.ZONE_QUEST_SECONDS
     for map, ids in pairs(byMap) do
         if map ~= opts.exclude and not Data.CAPITALS[map] then
-            local count, xp = 0, 0
+            local count, xp, points = 0, 0, {}
             for _, id in ipairs(ids) do
                 local level = self.lib.Quest.questLevel(id) or 0
                 local ok = level >= minLevel and level <= maxLevel and self:IsAvailable(id, player)
@@ -527,6 +537,9 @@ function Data:RecommendZones(player, opts)
                     if not opts.isDoable or opts.isDoable(id) ~= false then
                         count = count + 1
                         xp = xp + (self:EstimateXP(id, player.level) or 0)
+                        if opts.travel then
+                            points[#points + 1] = self:StarterPoint(id, map)
+                        end
                     end
                 end
             end
@@ -541,18 +554,39 @@ function Data:RecommendZones(player, opts)
                 if opts.continentOf and opts.continent then
                     far = opts.continentOf(map) ~= opts.continent
                 end
-                list[#list + 1] = { map = map, count = count, xp = xp, far = far, onGuide = onGuide }
+                -- Viaje hasta el campamento con más dadores de la zona (nil si no se sabe).
+                local travel, flew
+                local hub = opts.travel and Data.Cluster(points)
+                if hub then
+                    travel, flew = opts.travel(map, hub.x, hub.y)
+                end
+                local net = xp - (travel or 0) * xpPerSecond
+                list[#list + 1] = {
+                    map = map,
+                    count = count,
+                    xp = xp,
+                    far = far and not travel,
+                    onGuide = onGuide,
+                    travel = travel,
+                    flew = flew,
+                    net = net,
+                }
             end
         end
     end
-    -- Primero las zonas que las guías hacen a tu nivel (ya cuentan el viaje y la densidad de
-    -- misiones, aunque estén en otro continente); después, las del mismo continente; luego, por XP.
+    -- Primero las zonas que las guías hacen a tu nivel (ya cuentan la densidad de misiones, aunque
+    -- estén en otro continente); después, las que se sabe cómo alcanzar (mismo continente, o con
+    -- vuelos y barcos conocidos); y dentro de cada grupo, por XP neta del viaje. Sin datos de viaje
+    -- (opts.travel), la XP neta es la total y el orden es el de siempre.
     table.sort(list, function(a, b)
         if a.onGuide ~= b.onGuide then
             return a.onGuide
         end
         if a.far ~= b.far then
             return not a.far
+        end
+        if a.net ~= b.net then
+            return a.net > b.net
         end
         if a.xp ~= b.xp then
             return a.xp > b.xp

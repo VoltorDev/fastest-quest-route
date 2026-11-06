@@ -126,7 +126,12 @@ SlashCmdList.RUTAMISIONES = function(message)
         else
             ns:Print(L.ZONES_HEADER)
             for i, zone in ipairs(zones) do
-                print(L.ZONES_LINE:format(i, ns.Route.ZoneName(zone.map), zone.count, AbbreviateNumbers(zone.xp)))
+                local line = L.ZONES_LINE:format(i, ns.Route.ZoneName(zone.map), zone.count, AbbreviateNumbers(zone.xp))
+                if zone.travel then
+                    local minutes = math.max(1, math.floor(zone.travel / 60 + 0.5))
+                    line = line .. (zone.flew and L.ZONES_FLIGHT or L.ZONES_WALK):format(minutes)
+                end
+                print(line)
             end
         end
     elseif command == "reset" then

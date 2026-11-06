@@ -26,6 +26,8 @@ read_globals = {
     "OpenWorldMap",
     "IsMounted",
     "GetUnitSpeed",
+    "C_TaxiMap",
+    "CreateVector2D",
     "IsShiftKeyDown",
     "UnitFactionGroup",
     "C_GossipInfo",
@@ -102,3 +104,4 @@ files["tests/**/*.lua"] = {
 
 -- Datos generados por tools/extraer_guias.py: líneas largas a propósito.
 files["GuideData.lua"] = { max_line_length = false }
+files["FlightData.lua"] = { max_line_length = false }

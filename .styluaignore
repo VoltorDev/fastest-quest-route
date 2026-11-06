@@ -2,3 +2,4 @@ Libs/
 tools/
 .release/
 GuideData.lua
+FlightData.lua

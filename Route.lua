@@ -65,6 +65,12 @@ function module:OnEnable()
             module:RequestUpdate()
         end)
     end
+    -- Al abrir el mapa de vuelo se puede haber descubierto un maestro de vuelo nuevo.
+    ns:RegisterEvent("TAXIMAP_OPENED", function()
+        module.nodesCache = nil
+        module.zonesKey = nil
+        module:RequestUpdate()
+    end)
     ns:RegisterEvent("QUEST_TURNED_IN", function(_, _, questID)
         if questID then
             module.completed[questID] = true
@@ -212,14 +218,14 @@ function module:Update()
         self.previousKeys[#self.previousKeys + 1] = step.key
     end
     self:UpdateWaypoint()
-    self:UpdateZones(player, uiMap)
+    self:UpdateZones(player, uiMap, here)
     ns:RefreshUI()
 end
 
 -- Siguiente zona recomendada: la que más XP disponible tiene para tu nivel. El índice de todos los
 -- mapas se construye una vez, troceado por fotogramas, y la recomendación solo se recalcula al
 -- cambiar de nivel, de mapa o al entregar una misión.
-function module:UpdateZones(player, uiMap)
+function module:UpdateZones(player, uiMap, here)
     local byMap = self.data:IndexAllStep(INDEX_BUDGET)
     if not byMap then
         if not self.zoneIndexing then
@@ -243,7 +249,76 @@ function module:UpdateZones(player, uiMap)
         continentOf = module.ContinentOf,
         continent = module.ContinentOf(uiMap),
         guideZones = ns.db.useGuide and module.GuideFor(ns.GuideZones, player.faction) or nil,
+        travel = module.TravelFrom(uiMap, here, player.faction),
     })
+end
+
+-- Posición en el mundo (instancia, x, y en yardas) de un punto de un mapa (x, y de 0 a 1).
+function module.WorldPos(map, x, y)
+    if not (C_Map.GetWorldPosFromMapPos and CreateVector2D) then
+        return nil
+    end
+    local ok, continent, position = pcall(C_Map.GetWorldPosFromMapPos, map, CreateVector2D(x, y))
+    if not ok or not continent or not position then
+        return nil
+    end
+    local wx, wy = position:GetXY()
+    return continent, wx, wy
+end
+
+-- Maestros de vuelo que conoces, en coordenadas del mundo: { [nodeID] = { c, x, y } }. Se leen del
+-- mapa de cada continente (no hace falta estar junto a un maestro) y se vuelven a leer al abrir el
+-- mapa de vuelo, que es cuando se descubre uno nuevo. Los de la otra facción no cuentan.
+local TAXI_CONTINENTS = { 1414, 1415 } -- Kalimdor, Reinos del Este
+function module.KnownNodes(faction)
+    if module.nodesCache then
+        return module.nodesCache
+    end
+    local nodes = {}
+    local factions = Enum and Enum.FlightPathFaction or {}
+    local enemy = faction == "Alliance" and (factions.Horde or 1) or (factions.Alliance or 2)
+    if C_TaxiMap and C_TaxiMap.GetTaxiNodesForMap then
+        for _, continent in ipairs(TAXI_CONTINENTS) do
+            local ok, list = pcall(C_TaxiMap.GetTaxiNodesForMap, continent)
+            for _, info in ipairs(ok and list or {}) do
+                if not info.isUndiscovered and info.faction ~= enemy and info.position then
+                    local c, x, y = module.WorldPos(continent, info.position:GetXY())
+                    if c then
+                        nodes[info.nodeID] = { c = c, x = x, y = y }
+                    end
+                end
+            end
+        end
+    end
+    module.nodesCache = nodes
+    return nodes
+end
+
+-- Función de viaje para RecommendZones: segundos desde donde estás hasta un punto (x, y en %) de un
+-- mapa, andando o con los vuelos que conoces. nil si no se sabe dónde estás.
+function module.TravelFrom(uiMap, here, faction)
+    if not here or not ns.Travel then
+        return nil
+    end
+    local c, x, y = module.WorldPos(uiMap, here.x / 100, here.y / 100)
+    if not c then
+        return nil
+    end
+    local from = { c = c, x = x, y = y }
+    local key = faction == "Alliance" and "A" or faction == "Horde" and "H" or nil
+    local opts = {
+        speed = module.Speed(),
+        nodes = module.KnownNodes(faction),
+        times = key and ns.FlightTimes and ns.FlightTimes[key] or nil,
+        transports = key and ns.Travel.TRANSPORTS[key] or nil,
+    }
+    return function(map, tx, ty)
+        local tc, wx, wy = module.WorldPos(map, tx / 100, ty / 100)
+        if not tc then
+            return nil
+        end
+        return ns.Travel.Seconds(from, { c = tc, x = wx, y = wy }, opts)
+    end
 end
 
 -- Parte de una tabla de guías por facción (GuideZones) que toca a la facción del jugador.

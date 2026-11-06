@@ -43,6 +43,12 @@ local function Client(world)
             GetMapWorldSize = function()
                 return 5287.5, 3525
             end,
+            -- Mundo de juguete: 1 yarda = 0,0001 del mapa; Kalimdor y sus zonas en la instancia 1.
+            GetWorldPosFromMapPos = function(map, position)
+                local x, y = position:GetXY()
+                local continent = (map == 1414 or map == 1411 or map == 1413) and 1 or 0
+                return continent, Vector(x * 10000, y * 10000)
+            end,
             CanSetUserWaypointOnMap = function()
                 return true
             end,
@@ -57,6 +63,24 @@ local function Client(world)
                     [947] = { mapID = 947, name = "Azeroth", mapType = 1, parentMapID = 946 },
                 }
                 return maps[map]
+            end,
+        },
+        CreateVector2D = Vector,
+        -- Maestros de vuelo: posiciones en el mapa de continente (0-1).
+        C_TaxiMap = {
+            GetTaxiNodesForMap = function(map)
+                local list = {}
+                for _, node in ipairs(world.taxi or {}) do
+                    if node.map == map then
+                        list[#list + 1] = {
+                            nodeID = node.id,
+                            position = Vector(node.x, node.y),
+                            faction = node.faction,
+                            isUndiscovered = node.undiscovered or false,
+                        }
+                    end
+                end
+                return list
             end,
         },
         C_SuperTrack = {
@@ -157,6 +181,32 @@ describe("ruta en el cliente simulado: continente y nombres del cliente", functi
         assert.is_nil(ns.Route.GuideFor(tables, "Neutral"))
         assert.is_nil(ns.Route.GuideFor(nil, "Horde"))
         assert.are.equal(1436, ns.GuideZones.A[1][1]) -- el fichero real carga con el addon
+    end)
+end)
+
+describe("viaje hasta la siguiente zona", function()
+    it("lee los maestros de vuelo que conoces y los relee al abrir el mapa de vuelo", function()
+        local world = NewWorld()
+        world.taxi = {
+            { id = 23, map = 1414, x = 0.5, y = 0.1, faction = 1 }, -- Orgrimmar, de la Horda
+            { id = 25, map = 1414, x = 0.5, y = 0.5, faction = 0, undiscovered = true },
+            { id = 2, map = 1415, x = 0.5, y = 0.5, faction = 2 }, -- de la Alianza: no cuenta
+        }
+        local env, ns = Boot(world)
+        assert.are.same({}, env:Missing())
+        local nodes = ns.Route.KnownNodes("Horde")
+        assert.are.same({ c = 1, x = 5000, y = 1000 }, nodes[23])
+        assert.is_nil(nodes[25])
+        assert.is_nil(nodes[2])
+        world.taxi[2].undiscovered = false
+        assert.is_nil(ns.Route.KnownNodes("Horde")[25]) -- en caché hasta abrir el mapa de vuelo
+        env:Fire("TAXIMAP_OPENED", 1)
+        assert.is_truthy(ns.Route.KnownNodes("Horde")[25])
+        -- Viaje desde donde estás (42, 68 en Durotar) a pie: 0,01 del mapa son 100 yardas.
+        local travel = ns.Route.TravelFrom(1411, { x = 42, y = 68 }, "Horde")
+        local seconds = travel(1411, 42, 69)
+        assert.is_true(math.abs(seconds - 100 / ns.db.speed) < 1e-6)
+        assert.is_nil(ns.Route.TravelFrom(1411, nil, "Horde"))
     end)
 end)
 
