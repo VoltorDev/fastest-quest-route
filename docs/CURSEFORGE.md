@@ -23,7 +23,7 @@ carga en Forever. Por eso se sube como **Beta**; pasarlo a Release cuando se vea
 | Versión de juego | **Forever 1.60.1** (Interface 16001). No marcar retail ni Classic |
 | Tipo de fichero | Beta (ver arriba) |
 | Avatar | `docs/avatar-curseforge.png` (lo dibuja `mods/herramientas/avatares_curseforge.py rutamisiones`) |
-| Capturas | **Faltan**: ventana con la ruta, sección «Evitar», flecha en el mapa. Solo en el juego |
+| Capturas | `docs/capturas/`: `ruta-escena.png`, `ruta-panel.png` (cliente en inglés, brujo nivel 9, 07-11-2026). En CurseForge, `ruta-escena` va como JPG: el PNG de 5,6 MB no llegó a subirse. |
 
 ## Descripción (pegar en el editor de CurseForge)
 
@@ -110,3 +110,5 @@ el zip con `DataTransfer` (el zip tiene que estar en una carpeta que la sesión 
 **0.2.0 (06-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Sí, súbelas»):** fichero «Fastest Quest Route 0.2.0», `mods\wow\dist\FastestQuestRoute-0.2.0.zip`, tipo **Release**, versiones Forever 1.60.1, publicación automática al aprobarse. Changelog en inglés que nombra lo nuevo: planificador calibrado con guías de subida (cadenas, entregas al pasar, objetivos solapados, campamentos); Questie sigue como Required Dependency. Pasa las comprobaciones fuera del juego (06-11-2026); **sin probar en el cliente**.
 
 **0.3.0 (06-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Sí, publica la 0.3.0»):** fichero «Fastest Quest Route 0.3.0», `mods\wow\dist\FastestQuestRoute-0.3.0.zip` (21 archivos, apto), tipo **Release**, versión Forever 1.60.1, publicación automática al aprobarse, Questie como Required Dependency. Changelog en inglés: datos de guías como respaldo de QuestieDB, orden de zonas de las guías y viaje (vuelos conocidos, barcos y zepelines) en la siguiente zona. Etiqueta `v0.3.0` en GitHub (flujo Release en verde). Para subir, el zip se copió a una carpeta legible por la sesión (`asistente-nico\wow-forever\work`). Pasa las comprobaciones fuera del juego (166 tests); **sin probar en el cliente**.
+
+**Capturas (07-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Faltan los otros addons»):** `ruta-escena.png`, `ruta-panel.png` de `docs/capturas/` subidas a Media (galería), con el título por defecto de CurseForge. En CurseForge, `ruta-escena` va como JPG: el PNG de 5,6 MB no llegó a subirse.

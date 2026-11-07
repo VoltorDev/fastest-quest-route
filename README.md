@@ -85,3 +85,9 @@ python -I -B tools\simular_ruta.py --pasos 200 --hasta-nivel 10
 python -I -B tools\simular_ruta.py --mapa 1412 --x 44.2 --y 76 --raza 6 --clase 1
 python -I -B tools\simular_ruta.py --mapa 1437 --x 10.6 --y 59.7 --nivel 27 --raza 1 --faccion Alliance --raza-token Human --guias
 ```
+
+## Capturas
+
+![Ruta en el juego](docs/capturas/ruta-escena.png)
+
+![Panel de la ruta](docs/capturas/ruta-panel.png)
