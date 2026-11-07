@@ -17,3 +17,4 @@ ignore:
   - tests
   - tools
   - .busted
+  - docs
